@@ -1,7 +1,7 @@
 import type { Role, WorldConfig } from './types'
 
 export const SERVER_CONFIG = {
-  hostname: '0.0.0.0',
+  hostname: Bun.env.SERVER_HOST ?? Bun.env.HOST ?? '0.0.0.0',
   port: Number(Bun.env.PORT ?? 3001),
   websocketIdleTimeout: 30,
 } as const
