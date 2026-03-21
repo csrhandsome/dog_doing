@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SERVER_DIR="$ROOT_DIR/server"
 CLIENT_DIR="$ROOT_DIR/client"
 SERVER_HOST="${SERVER_HOST:-0.0.0.0}"
@@ -26,7 +26,7 @@ if [[ -n "$PUBLIC_HOST" ]]; then
 else
   echo "Open locally: http://127.0.0.1:${CLIENT_PORT}"
   echo "Health locally: http://127.0.0.1:${SERVER_PORT}/health"
-  echo "To print a public URL, run with: PUBLIC_HOST=<your-server-ip> ./run.sh"
+  echo "To print a public URL, run with: PUBLIC_HOST=<your-server-ip> pnpm run dev"
 fi
 
 echo "Starting backend from $SERVER_DIR"

@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --watch src/index.ts",
-    "start": "bun run src/index.ts",
-    "build": "bun build src/index.ts --outdir dist",
+    "start": "bun run dist/index.js",
+    "build": "bun build src/index.ts --outdir dist --target bun",
     "check": "bunx tsc --noEmit"
   },
   "packageManager": "pnpm@10.32.1",

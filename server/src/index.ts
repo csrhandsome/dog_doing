@@ -5,7 +5,7 @@ import { GameRoom } from './game/room'
 const room = new GameRoom()
 const app = createApp(room)
 
-const server = app.listen({
+app.listen({
   hostname: SERVER_CONFIG.hostname,
   port: SERVER_CONFIG.port,
   websocket: {
@@ -15,4 +15,8 @@ const server = app.listen({
 
 room.start()
 
-console.log(`dog-doing server listening on ws://localhost:${server.port}/ws`)
+const displayHost = SERVER_CONFIG.hostname === '0.0.0.0' ? '127.0.0.1' : SERVER_CONFIG.hostname
+const displayPort = app.server?.port ?? SERVER_CONFIG.port
+
+console.log(`dog-doing server listening on http://${displayHost}:${displayPort}`)
+console.log(`websocket endpoint available at ws://${displayHost}:${displayPort}/ws`)
