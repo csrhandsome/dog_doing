@@ -1,4 +1,6 @@
-export type Role = 'warrior' | 'mage'
+export type Role = 'warrior' | 'mage' | 'bibilabu'
+
+export type WeaponId = 'knife' | 'arow' | 'gun'
 
 export type Vector = {
   x: number
@@ -28,6 +30,7 @@ export type Player = {
   socketId: string
   name: string
   role: Role
+  equippedWeapon: WeaponId
   color: number
   x: number
   y: number
@@ -46,6 +49,31 @@ export type Player = {
   invulnerableUntil: number
   respawnAt: number | null
   lastProcessedSeq: number
+}
+
+export type DroppedItem = {
+  id: string
+  weaponId: WeaponId
+  x: number
+  y: number
+}
+
+export type Projectile = {
+  id: string
+  ownerId: string
+  weaponId: Exclude<WeaponId, 'knife'>
+  x: number
+  y: number
+  startX: number
+  startY: number
+  endX: number
+  endY: number
+  direction: Vector
+  speed: number
+  damage: number
+  radius: number
+  spawnedAt: number
+  expiresAt: number
 }
 
 export type ClientJoinMessage = {
@@ -76,6 +104,7 @@ export type PlayerSnapshot = {
   id: string
   name: string
   role: Role
+  equippedWeapon: WeaponId
   color: number
   x: number
   y: number
@@ -87,11 +116,34 @@ export type PlayerSnapshot = {
   respawnAt: number | null
 }
 
+export type DroppedItemSnapshot = {
+  id: string
+  weaponId: WeaponId
+  x: number
+  y: number
+}
+
+export type ProjectileSnapshot = {
+  id: string
+  ownerId: string
+  weaponId: Exclude<WeaponId, 'knife'>
+  x: number
+  y: number
+  startX: number
+  startY: number
+  endX: number
+  endY: number
+  spawnedAt: number
+  expiresAt: number
+}
+
 export type ServerSnapshotMessage = {
   type: 'snapshot'
   payload: {
     serverTime: number
     players: PlayerSnapshot[]
+    droppedItems: DroppedItemSnapshot[]
+    projectiles: ProjectileSnapshot[]
   }
 }
 

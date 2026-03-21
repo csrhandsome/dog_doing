@@ -122,7 +122,7 @@ export function useGameClient(input: InputButtons) {
           tickRate: parsed.payload.tickRate,
           world: parsed.payload.world,
         })
-        setSystemMessage('arena synced')
+        setSystemMessage('connected')
         setError(null)
         return
       }

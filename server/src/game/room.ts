@@ -2,30 +2,47 @@ import {
   ACTION_STATE_MS,
   ATTACK_ANIMATION_MS,
   ATTACK_ARC_DOT,
-  ATTACK_COOLDOWN_MS,
-  ATTACK_DAMAGE,
-  ATTACK_RANGE,
   BASE_SPEED,
   BLOCK_REACTION_MS,
   BLOCK_SPEED_MULTIPLIER,
   HURT_STUN_MS,
   PLAYER_MAX_HP,
   PLAYER_RADIUS,
+  PROJECTILE_SPAWN_OFFSET,
   RESPAWN_INVULNERABILITY_MS,
   RESPAWN_MS,
   RESPAWN_PADDING,
   ROLE_COLORS,
   TICK_MS,
   TICK_RATE,
+  WEAPON_DROP_RESPAWN_MS,
+  WEAPON_PICKUP_RADIUS,
+  WEAPON_STATS,
   WORLD,
 } from './config'
 import { clamp, directionFromInput, normalize } from './math'
-import type { ClientMessage, InputState, Player, PlayerAction, Role, ServerMessage, ServerSnapshotMessage } from './types'
+import type {
+  ClientMessage,
+  DroppedItem,
+  InputState,
+  Player,
+  PlayerAction,
+  Projectile,
+  Role,
+  ServerMessage,
+  ServerSnapshotMessage,
+  WeaponId,
+} from './types'
+
+const WORLD_WEAPON_IDS: WeaponId[] = ['knife', 'arow', 'gun']
 
 export class GameRoom {
   private readonly sockets = new Map<string, ServerWebSocket<unknown>>()
   private readonly socketToPlayerId = new Map<string, string>()
   private readonly players = new Map<string, Player>()
+  private readonly droppedItems = new Map<string, DroppedItem>()
+  private readonly projectiles = new Map<string, Projectile>()
+  private pendingDroppedWeapons: Array<{ respawnAt: number; weaponId: WeaponId }> = []
   private interval: ReturnType<typeof setInterval> | null = null
   private previousTick = Date.now()
 
@@ -42,6 +59,7 @@ export class GameRoom {
       return
     }
 
+    this.ensureWorldWeapons()
     this.previousTick = Date.now()
     this.interval = setInterval(() => {
       this.tick()
@@ -110,6 +128,8 @@ export class GameRoom {
       this.players.delete(existingPlayerId)
     }
 
+    this.ensureWorldWeapons()
+
     const player = this.createPlayer(socketId, name, role)
     this.players.set(player.id, player)
     this.socketToPlayerId.set(socketId, player.id)
@@ -131,10 +151,17 @@ export class GameRoom {
     const deltaSeconds = (now - this.previousTick) / 1000
     this.previousTick = now
 
+    this.respawnDroppedWeapons(now)
+
     for (const player of this.players.values()) {
       this.updatePlayer(player, deltaSeconds, now)
     }
 
+    for (const player of this.players.values()) {
+      this.resolveWeaponPickup(player, now)
+    }
+
+    this.updateProjectiles(deltaSeconds, now)
     this.broadcast(this.snapshot(now))
   }
 
@@ -148,6 +175,7 @@ export class GameRoom {
       socketId,
       name: safeName,
       role,
+      equippedWeapon: 'knife',
       color: ROLE_COLORS[role],
       x: spawn.x,
       y: spawn.y,
@@ -231,6 +259,7 @@ export class GameRoom {
           id: player.id,
           name: player.name,
           role: player.role,
+          equippedWeapon: player.equippedWeapon,
           color: player.color,
           x: Number(player.x.toFixed(2)),
           y: Number(player.y.toFixed(2)),
@@ -240,6 +269,25 @@ export class GameRoom {
           action: player.action,
           lastProcessedSeq: player.lastProcessedSeq,
           respawnAt: player.respawnAt,
+        })),
+        droppedItems: Array.from(this.droppedItems.values()).map((item) => ({
+          id: item.id,
+          weaponId: item.weaponId,
+          x: Number(item.x.toFixed(2)),
+          y: Number(item.y.toFixed(2)),
+        })),
+        projectiles: Array.from(this.projectiles.values()).map((projectile) => ({
+          id: projectile.id,
+          ownerId: projectile.ownerId,
+          weaponId: projectile.weaponId,
+          x: Number(projectile.x.toFixed(2)),
+          y: Number(projectile.y.toFixed(2)),
+          startX: Number(projectile.startX.toFixed(2)),
+          startY: Number(projectile.startY.toFixed(2)),
+          endX: Number(projectile.endX.toFixed(2)),
+          endY: Number(projectile.endY.toFixed(2)),
+          spawnedAt: projectile.spawnedAt,
+          expiresAt: projectile.expiresAt,
         })),
       },
     }
@@ -264,6 +312,55 @@ export class GameRoom {
   private setAction(player: Player, action: PlayerAction, durationMs = 0, now = Date.now()) {
     player.action = action
     player.actionUntil = now + durationMs
+  }
+
+  private ensureWorldWeapons() {
+    if (this.droppedItems.size > 0 || this.pendingDroppedWeapons.length > 0) {
+      return
+    }
+
+    for (const weaponId of WORLD_WEAPON_IDS) {
+      this.spawnDroppedItem(weaponId)
+    }
+  }
+
+  private spawnDroppedItem(weaponId: WeaponId, position = this.randomSpawn()) {
+    const x = clamp(position.x, RESPAWN_PADDING, WORLD.width - RESPAWN_PADDING)
+    const y = clamp(position.y, RESPAWN_PADDING, WORLD.height - RESPAWN_PADDING)
+    const id = crypto.randomUUID()
+
+    this.droppedItems.set(id, {
+      id,
+      weaponId,
+      x,
+      y,
+    })
+  }
+
+  private queueDroppedWeaponRespawn(weaponId: WeaponId, now: number) {
+    this.pendingDroppedWeapons.push({
+      weaponId,
+      respawnAt: now + WEAPON_DROP_RESPAWN_MS,
+    })
+  }
+
+  private respawnDroppedWeapons(now: number) {
+    const ready: WeaponId[] = []
+    const waiting: Array<{ respawnAt: number; weaponId: WeaponId }> = []
+
+    for (const item of this.pendingDroppedWeapons) {
+      if (item.respawnAt <= now) {
+        ready.push(item.weaponId)
+      } else {
+        waiting.push(item)
+      }
+    }
+
+    this.pendingDroppedWeapons = waiting
+
+    for (const weaponId of ready) {
+      this.spawnDroppedItem(weaponId)
+    }
   }
 
   private maybeRespawn(player: Player, now: number) {
@@ -299,8 +396,35 @@ export class GameRoom {
     this.setAction(player, 'dead', RESPAWN_MS, now)
   }
 
-  private resolveAttack(attacker: Player, now: number) {
+  private isBlockingIncoming(player: Player, source: { x: number; y: number }, now: number) {
+    const targetForward = normalize(player.facing)
+    const towardSource = normalize({
+      x: source.x - player.x,
+      y: source.y - player.y,
+    })
+
+    return (
+      player.input.block &&
+      (player.action === 'block' || player.actionUntil > now) &&
+      targetForward.x * towardSource.x + targetForward.y * towardSource.y > 0.1
+    )
+  }
+
+  private applyDamage(target: Player, damage: number, now: number) {
+    target.hp = clamp(target.hp - damage, 0, target.maxHp)
+    target.invulnerableUntil = now + HURT_STUN_MS
+
+    if (target.hp <= 0) {
+      this.killPlayer(target, now)
+      return
+    }
+
+    this.setAction(target, 'hurt', HURT_STUN_MS, now)
+  }
+
+  private resolveKnifeAttack(attacker: Player, now: number) {
     const forward = normalize(attacker.facing)
+    const weaponStats = WEAPON_STATS.knife
 
     for (const target of this.players.values()) {
       if (target.id === attacker.id || !this.isAlive(target, now) || target.invulnerableUntil > now) {
@@ -313,7 +437,7 @@ export class GameRoom {
       }
       const distance = Math.hypot(toTarget.x, toTarget.y)
 
-      if (distance > ATTACK_RANGE + target.radius) {
+      if (distance > weaponStats.range + target.radius) {
         continue
       }
 
@@ -324,28 +448,142 @@ export class GameRoom {
         continue
       }
 
-      const targetForward = normalize(target.facing)
-      const towardAttacker = normalize({
-        x: attacker.x - target.x,
-        y: attacker.y - target.y,
-      })
-      const isBlockingFront =
-        target.input.block &&
-        (target.action === 'block' || target.actionUntil > now) &&
-        targetForward.x * towardAttacker.x + targetForward.y * towardAttacker.y > 0.1
-
-      if (isBlockingFront) {
+      if (this.isBlockingIncoming(target, attacker, now)) {
         this.setAction(target, 'block', BLOCK_REACTION_MS, now)
         continue
       }
 
-      target.hp = clamp(target.hp - ATTACK_DAMAGE, 0, target.maxHp)
-      target.invulnerableUntil = now + HURT_STUN_MS
+      this.applyDamage(target, weaponStats.damage, now)
+    }
+  }
 
-      if (target.hp <= 0) {
-        this.killPlayer(target, now)
-      } else {
-        this.setAction(target, 'hurt', HURT_STUN_MS, now)
+  private spawnProjectile(player: Player, now: number) {
+    if (player.equippedWeapon === 'knife') {
+      return
+    }
+
+    const stats = WEAPON_STATS[player.equippedWeapon]
+    const rawFacing = normalize(player.facing)
+    const direction =
+      rawFacing.x === 0 && rawFacing.y === 0 ? { x: 1, y: 0 } : rawFacing
+    const startX = clamp(
+      player.x + direction.x * PROJECTILE_SPAWN_OFFSET,
+      player.radius,
+      WORLD.width - player.radius,
+    )
+    const startY = clamp(
+      player.y + direction.y * PROJECTILE_SPAWN_OFFSET,
+      player.radius,
+      WORLD.height - player.radius,
+    )
+    const unclampedEndX = startX + direction.x * stats.range
+    const unclampedEndY = startY + direction.y * stats.range
+    const endX = clamp(unclampedEndX, player.radius, WORLD.width - player.radius)
+    const endY = clamp(unclampedEndY, player.radius, WORLD.height - player.radius)
+    const travelDistance = Math.hypot(endX - startX, endY - startY)
+
+    if (travelDistance === 0) {
+      return
+    }
+
+    const id = crypto.randomUUID()
+
+    this.projectiles.set(id, {
+      id,
+      ownerId: player.id,
+      weaponId: player.equippedWeapon,
+      x: startX,
+      y: startY,
+      startX,
+      startY,
+      endX,
+      endY,
+      direction: normalize({
+        x: endX - startX,
+        y: endY - startY,
+      }),
+      speed: stats.projectileSpeed,
+      damage: stats.damage,
+      radius: stats.projectileRadius,
+      spawnedAt: now,
+      expiresAt: now + (travelDistance / stats.projectileSpeed) * 1000,
+    })
+  }
+
+  private resolveWeaponPickup(player: Player, now: number) {
+    if (!this.isAlive(player, now)) {
+      return
+    }
+
+    for (const item of this.droppedItems.values()) {
+      if (item.weaponId === player.equippedWeapon) {
+        continue
+      }
+
+      const distance = Math.hypot(item.x - player.x, item.y - player.y)
+
+      if (distance > player.radius + WEAPON_PICKUP_RADIUS) {
+        continue
+      }
+
+      player.equippedWeapon = item.weaponId
+      this.droppedItems.delete(item.id)
+      this.queueDroppedWeaponRespawn(item.weaponId, now)
+      return
+    }
+  }
+
+  private updateProjectiles(deltaSeconds: number, now: number) {
+    for (const projectile of this.projectiles.values()) {
+      const remainingDistance = Math.hypot(
+        projectile.endX - projectile.x,
+        projectile.endY - projectile.y,
+      )
+
+      if (remainingDistance <= projectile.radius || now >= projectile.expiresAt) {
+        this.projectiles.delete(projectile.id)
+        continue
+      }
+
+      const stepDistance = projectile.speed * deltaSeconds
+      const travelledDistance = Math.min(stepDistance, remainingDistance)
+      projectile.x += projectile.direction.x * travelledDistance
+      projectile.y += projectile.direction.y * travelledDistance
+
+      let consumed = false
+
+      for (const target of this.players.values()) {
+        if (
+          target.id === projectile.ownerId ||
+          !this.isAlive(target, now) ||
+          target.invulnerableUntil > now
+        ) {
+          continue
+        }
+
+        const distance = Math.hypot(target.x - projectile.x, target.y - projectile.y)
+
+        if (distance > target.radius + projectile.radius) {
+          continue
+        }
+
+        if (this.isBlockingIncoming(target, projectile, now)) {
+          this.setAction(target, 'block', BLOCK_REACTION_MS, now)
+        } else {
+          this.applyDamage(target, projectile.damage, now)
+        }
+
+        consumed = true
+        break
+      }
+
+      if (consumed) {
+        this.projectiles.delete(projectile.id)
+        continue
+      }
+
+      if (travelledDistance >= remainingDistance) {
+        this.projectiles.delete(projectile.id)
       }
     }
   }
@@ -364,12 +602,18 @@ export class GameRoom {
     }
 
     const attackPressed = player.input.attack && !player.previousButtons.attack
+    const weaponStats = WEAPON_STATS[player.equippedWeapon]
     player.previousButtons.attack = player.input.attack
 
     if (attackPressed && player.attackCooldownUntil <= now && player.action !== 'hurt') {
-      player.attackCooldownUntil = now + ATTACK_COOLDOWN_MS
+      player.attackCooldownUntil = now + weaponStats.cooldownMs
       this.setAction(player, 'attack', ATTACK_ANIMATION_MS, now)
-      this.resolveAttack(player, now)
+
+      if (weaponStats.isRanged) {
+        this.spawnProjectile(player, now)
+      } else {
+        this.resolveKnifeAttack(player, now)
+      }
     }
 
     if (player.action === 'hurt' && player.actionUntil > now) {
@@ -381,8 +625,16 @@ export class GameRoom {
     const speed = player.speed * (blocking ? BLOCK_SPEED_MULTIPLIER : 1)
 
     if (moveDirection.x !== 0 || moveDirection.y !== 0) {
-      player.x = clamp(player.x + moveDirection.x * speed * deltaSeconds, player.radius, WORLD.width - player.radius)
-      player.y = clamp(player.y + moveDirection.y * speed * deltaSeconds, player.radius, WORLD.height - player.radius)
+      player.x = clamp(
+        player.x + moveDirection.x * speed * deltaSeconds,
+        player.radius,
+        WORLD.width - player.radius,
+      )
+      player.y = clamp(
+        player.y + moveDirection.y * speed * deltaSeconds,
+        player.radius,
+        WORLD.height - player.radius,
+      )
     }
 
     if (player.actionUntil <= now) {
