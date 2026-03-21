@@ -18,22 +18,22 @@ type ArenaSceneProps = {
   world: WorldConfig;
 };
 
-type BurnMark = {
+type GrassPatch = {
+  alpha: number;
+  height: number;
+  width: number;
+  x: number;
+  y: number;
+};
+
+type TreeShadow = {
   alpha: number;
   radius: number;
   x: number;
   y: number;
 };
 
-type Spark = {
-  alpha: number;
-  color: number;
-  radius: number;
-  x: number;
-  y: number;
-};
-
-type Scuff = {
+type TrackScuff = {
   alpha: number;
   endX: number;
   endY: number;
@@ -42,14 +42,17 @@ type Scuff = {
   width: number;
 };
 
-const arenaCache = new Map<
+const playgroundCache = new Map<
   string,
   {
-    burnMarks: BurnMark[];
-    scuffs: Scuff[];
-    sparks: Spark[];
+    grassPatches: GrassPatch[];
+    trackScuffs: TrackScuff[];
+    treeShadows: TreeShadow[];
   }
 >();
+
+// Keep the scene boundary aligned with the current server-side movement clamp.
+const WORLD_EDGE_PADDING = 22;
 
 function createSeededRandom(seed: number) {
   let value = seed;
@@ -60,354 +63,368 @@ function createSeededRandom(seed: number) {
   };
 }
 
-function getArenaBounds(world: WorldConfig) {
-  const inset = Math.max(26, world.cellSize * 0.4);
+function getPlaygroundBounds(world: WorldConfig) {
+  const margin = WORLD_EDGE_PADDING;
+  const trackWidth = world.cellSize * 1.08;
+  const fieldInset = margin + trackWidth;
+  const outerWidth = world.width - margin * 2;
+  const outerHeight = world.height - margin * 2;
+  const fieldWidth = world.width - fieldInset * 2;
+  const fieldHeight = world.height - fieldInset * 2;
 
   return {
     centerX: world.width / 2,
     centerY: world.height / 2,
-    innerHeight: world.height - inset * 2,
-    innerWidth: world.width - inset * 2,
-    innerX: inset,
-    innerY: inset,
-    inset,
+    fieldHeight,
+    fieldInset,
+    fieldWidth,
+    fieldX: fieldInset,
+    fieldY: fieldInset,
+    margin,
+    outerHeight,
+    outerWidth,
+    outerX: margin,
+    outerY: margin,
+    trackWidth,
   };
 }
 
-function getArenaDecor(world: WorldConfig) {
+function getPlaygroundDecor(world: WorldConfig) {
   const key = `${world.width}-${world.height}-${world.cellSize}`;
-  const cached = arenaCache.get(key);
+  const cached = playgroundCache.get(key);
 
   if (cached) {
     return cached;
   }
 
-  const sparkRandom = createSeededRandom(world.width + world.height + 17);
-  const scuffRandom = createSeededRandom(world.width * 3 + world.cellSize * 7);
-  const burnRandom = createSeededRandom(world.height * 5 + world.cellSize * 11);
-  const { innerHeight, innerWidth, innerX, innerY } = getArenaBounds(world);
-  const sparks: Spark[] = [];
-  const scuffs: Scuff[] = [];
-  const burnMarks: BurnMark[] = [];
+  const grassRandom = createSeededRandom(world.width + world.height + 41);
+  const scuffRandom = createSeededRandom(world.width * 5 + world.cellSize * 13);
+  const shadowRandom = createSeededRandom(world.height * 7 + world.cellSize * 19);
+  const { fieldHeight, fieldWidth, fieldX, fieldY, outerHeight, outerWidth, outerX, outerY } =
+    getPlaygroundBounds(world);
+  const grassPatches: GrassPatch[] = [];
+  const trackScuffs: TrackScuff[] = [];
+  const treeShadows: TreeShadow[] = [];
 
-  for (let index = 0; index < 44; index += 1) {
-    const color = sparkRandom() > 0.55 ? 0xffa35d : 0x7bc6ff;
-
-    sparks.push({
-      alpha: 0.08 + sparkRandom() * 0.2,
-      color,
-      radius: 1.4 + sparkRandom() * 3.2,
-      x: innerX + sparkRandom() * innerWidth,
-      y: innerY + sparkRandom() * innerHeight,
-    });
-  }
-
-  for (let index = 0; index < 26; index += 1) {
-    const startX = innerX + scuffRandom() * innerWidth;
-    const startY = innerY + scuffRandom() * innerHeight;
-    const deltaX = (scuffRandom() - 0.5) * world.cellSize * 1.6;
-    const deltaY = (scuffRandom() - 0.5) * world.cellSize * 1.2;
-
-    scuffs.push({
-      alpha: 0.08 + scuffRandom() * 0.1,
-      endX: startX + deltaX,
-      endY: startY + deltaY,
-      startX,
-      startY,
-      width: 1 + scuffRandom() * 2.2,
+  for (let index = 0; index < 24; index += 1) {
+    grassPatches.push({
+      alpha: 0.05 + grassRandom() * 0.08,
+      height: world.cellSize * (0.8 + grassRandom() * 1.9),
+      width: world.cellSize * (1.1 + grassRandom() * 2.6),
+      x: fieldX + grassRandom() * fieldWidth,
+      y: fieldY + grassRandom() * fieldHeight,
     });
   }
 
   for (let index = 0; index < 18; index += 1) {
-    burnMarks.push({
-      alpha: 0.05 + burnRandom() * 0.06,
-      radius: world.cellSize * (0.14 + burnRandom() * 0.26),
-      x: innerX + burnRandom() * innerWidth,
-      y: innerY + burnRandom() * innerHeight,
+    const onHorizontal = scuffRandom() > 0.5;
+    const startX = onHorizontal
+      ? outerX + scuffRandom() * outerWidth
+      : (scuffRandom() > 0.5 ? outerX + world.cellSize * 0.72 : outerX + outerWidth - world.cellSize * 0.72);
+    const startY = onHorizontal
+      ? (scuffRandom() > 0.5 ? outerY + world.cellSize * 0.72 : outerY + outerHeight - world.cellSize * 0.72)
+      : outerY + scuffRandom() * outerHeight;
+
+    trackScuffs.push({
+      alpha: 0.08 + scuffRandom() * 0.1,
+      endX: startX + (scuffRandom() - 0.5) * world.cellSize * (onHorizontal ? 2 : 0.8),
+      endY: startY + (scuffRandom() - 0.5) * world.cellSize * (onHorizontal ? 0.8 : 2),
+      startX,
+      startY,
+      width: 1 + scuffRandom() * 2.4,
     });
   }
 
-  const decor = { burnMarks, scuffs, sparks };
-  arenaCache.set(key, decor);
+  for (let index = 0; index < 12; index += 1) {
+    const side = index % 4;
+
+    treeShadows.push({
+      alpha: 0.06 + shadowRandom() * 0.06,
+      radius: world.cellSize * (1.4 + shadowRandom() * 1.8),
+      x:
+        side === 0
+          ? outerX - world.cellSize * 0.5
+          : side === 1
+            ? outerX + outerWidth + world.cellSize * 0.5
+            : outerX + shadowRandom() * outerWidth,
+      y:
+        side === 2
+          ? outerY - world.cellSize * 0.5
+          : side === 3
+            ? outerY + outerHeight + world.cellSize * 0.5
+            : outerY + shadowRandom() * outerHeight,
+    });
+  }
+
+  const decor = { grassPatches, trackScuffs, treeShadows };
+  playgroundCache.set(key, decor);
 
   return decor;
 }
 
 function drawBackdrop(graphics: Graphics, world: WorldConfig) {
-  const { centerX, centerY } = getArenaBounds(world);
+  const { centerX, centerY } = getPlaygroundBounds(world);
 
   graphics.clear();
-  graphics.rect(0, 0, world.width, world.height).fill({ color: 0x05070b });
-  graphics.rect(0, 0, world.width, world.height * 0.46).fill({
-    color: 0x0c141d,
-    alpha: 0.98,
+  graphics.rect(0, 0, world.width, world.height).fill({ color: 0xd8c9a9 });
+  graphics.rect(0, 0, world.width, world.height * 0.16).fill({
+    color: 0xe7dcc1,
+    alpha: 0.58,
   });
-  graphics.rect(0, world.height * 0.46, world.width, world.height * 0.54).fill({
-    color: 0x120f10,
-    alpha: 0.94,
+  graphics.rect(0, world.height * 0.84, world.width, world.height * 0.16).fill({
+    color: 0xc5b489,
+    alpha: 0.34,
   });
-
-  graphics.circle(world.width * 0.2, world.height * 0.12, world.width * 0.19).fill({
-    color: 0x64bfff,
-    alpha: 0.09,
+  graphics.circle(world.width * 0.18, world.height * 0.14, world.width * 0.16).fill({
+    color: 0xffffff,
+    alpha: 0.05,
   });
-  graphics.circle(world.width * 0.8, world.height * 0.12, world.width * 0.17).fill({
-    color: 0xff7f5c,
+  graphics.circle(world.width * 0.8, world.height * 0.12, world.width * 0.14).fill({
+    color: 0xfff4ca,
     alpha: 0.08,
   });
-  graphics.circle(centerX, world.height * 0.08, world.width * 0.2).fill({
-    color: 0xffbc62,
-    alpha: 0.12,
-  });
-  graphics.ellipse(centerX, centerY, world.width * 0.3, world.height * 0.26).fill({
+  graphics.ellipse(centerX, centerY, world.width * 0.36, world.height * 0.26).fill({
     color: 0xffffff,
     alpha: 0.035,
   });
 }
 
-function drawFloor(graphics: Graphics, world: WorldConfig) {
-  const decor = getArenaDecor(world);
-  const { centerX, centerY, innerHeight, innerWidth, innerX, innerY, inset } =
-    getArenaBounds(world);
+function drawTrackAndField(graphics: Graphics, world: WorldConfig) {
+  const decor = getPlaygroundDecor(world);
+  const {
+    centerX,
+    centerY,
+    fieldHeight,
+    fieldWidth,
+    fieldX,
+    fieldY,
+    outerHeight,
+    outerWidth,
+    outerX,
+    outerY,
+    trackWidth,
+  } = getPlaygroundBounds(world);
+  const outerRadius = world.cellSize * 0.7;
+  const fieldRadius = world.cellSize * 0.44;
 
   graphics.clear();
 
-  graphics.roundRect(innerX, innerY, innerWidth, innerHeight, world.cellSize * 0.28).fill({
-    color: 0x13191f,
+  graphics.roundRect(outerX, outerY, outerWidth, outerHeight, outerRadius).fill({
+    color: 0xc45c40,
   });
   graphics.roundRect(
-    innerX + 8,
-    innerY + 8,
-    innerWidth - 16,
-    innerHeight - 16,
-    world.cellSize * 0.22,
+    outerX + 10,
+    outerY + 10,
+    outerWidth - 20,
+    outerHeight - 20,
+    outerRadius - 6,
   ).fill({
-    color: 0x1a2229,
-    alpha: 0.96,
+    color: 0xd16a4d,
+    alpha: 0.76,
+  });
+  graphics.roundRect(fieldX, fieldY, fieldWidth, fieldHeight, fieldRadius).fill({
+    color: 0x74b85f,
   });
 
-  for (let y = innerY + 12, row = 0; y < innerY + innerHeight - 12; y += world.cellSize, row += 1) {
-    graphics.rect(innerX + 10, y, innerWidth - 20, Math.min(world.cellSize, innerY + innerHeight - 12 - y)).fill({
-      color: row % 2 === 0 ? 0x151c22 : 0x11171c,
-      alpha: 0.3,
+  for (let y = fieldY, stripe = 0; y < fieldY + fieldHeight; y += world.cellSize * 0.96, stripe += 1) {
+    graphics.rect(fieldX, y, fieldWidth, Math.min(world.cellSize * 0.96, fieldY + fieldHeight - y)).fill({
+      color: stripe % 2 === 0 ? 0x7cbe65 : 0x6baa58,
+      alpha: 0.26,
     });
   }
 
-  graphics.rect(innerX + inset * 0.25, centerY - world.cellSize * 0.9, innerWidth - inset * 0.5, world.cellSize * 1.8).fill({
-    color: 0xffbd69,
-    alpha: 0.04,
-  });
-  graphics.rect(centerX - world.cellSize * 0.95, innerY + inset * 0.25, world.cellSize * 1.9, innerHeight - inset * 0.5).fill({
-    color: 0x79c0ff,
-    alpha: 0.032,
-  });
+  for (let lane = 0; lane < 4; lane += 1) {
+    const laneInset = lane * (trackWidth / 4.25) + 6;
 
-  for (let x = innerX; x <= innerX + innerWidth; x += world.cellSize) {
-    graphics.moveTo(x, innerY);
-    graphics.lineTo(x, innerY + innerHeight);
+    graphics.roundRect(
+      outerX + laneInset,
+      outerY + laneInset,
+      outerWidth - laneInset * 2,
+      outerHeight - laneInset * 2,
+      Math.max(10, outerRadius - laneInset * 0.6),
+    ).stroke({
+      color: 0xfef8ef,
+      alpha: lane === 0 ? 0.72 : 0.34,
+      width: lane === 0 ? 3.4 : 1.7,
+    });
   }
 
-  for (let y = innerY; y <= innerY + innerHeight; y += world.cellSize) {
-    graphics.moveTo(innerX, y);
-    graphics.lineTo(innerX + innerWidth, y);
+  graphics.roundRect(fieldX, fieldY, fieldWidth, fieldHeight, fieldRadius).stroke({
+    color: 0xfefcf6,
+    alpha: 0.82,
+    width: 3,
+  });
+  graphics.moveTo(centerX, fieldY);
+  graphics.lineTo(centerX, fieldY + fieldHeight);
+  graphics.stroke({
+    color: 0xfefcf6,
+    alpha: 0.8,
+    width: 3,
+  });
+  graphics.circle(centerX, centerY, world.cellSize * 1.18).stroke({
+    color: 0xfefcf6,
+    alpha: 0.82,
+    width: 3,
+  });
+  graphics.circle(centerX, centerY, 6).fill({
+    color: 0xfefcf6,
+    alpha: 0.92,
+  });
+
+  const penaltyBoxWidth = world.cellSize * 2.4;
+  const penaltyBoxHeight = world.cellSize * 4.9;
+  const goalBoxWidth = world.cellSize * 1.12;
+  const goalBoxHeight = world.cellSize * 2.36;
+
+  graphics.rect(fieldX, centerY - penaltyBoxHeight / 2, penaltyBoxWidth, penaltyBoxHeight).stroke({
+    color: 0xfefcf6,
+    alpha: 0.78,
+    width: 3,
+  });
+  graphics.rect(
+    fieldX + fieldWidth - penaltyBoxWidth,
+    centerY - penaltyBoxHeight / 2,
+    penaltyBoxWidth,
+    penaltyBoxHeight,
+  ).stroke({
+    color: 0xfefcf6,
+    alpha: 0.78,
+    width: 3,
+  });
+  graphics.rect(fieldX, centerY - goalBoxHeight / 2, goalBoxWidth, goalBoxHeight).stroke({
+    color: 0xfefcf6,
+    alpha: 0.76,
+    width: 3,
+  });
+  graphics.rect(
+    fieldX + fieldWidth - goalBoxWidth,
+    centerY - goalBoxHeight / 2,
+    goalBoxWidth,
+    goalBoxHeight,
+  ).stroke({
+    color: 0xfefcf6,
+    alpha: 0.76,
+    width: 3,
+  });
+
+  graphics.moveTo(outerX + trackWidth * 0.64, outerY);
+  graphics.lineTo(outerX + trackWidth * 0.64, outerY + trackWidth);
+  graphics.stroke({
+    color: 0xfef8ef,
+    alpha: 0.95,
+    width: 4,
+  });
+
+  for (
+    let x = fieldX + world.cellSize * 0.8;
+    x < fieldX + fieldWidth - world.cellSize * 0.4;
+    x += world.cellSize * 0.72
+  ) {
+    graphics.moveTo(x, outerY + trackWidth * 0.28);
+    graphics.lineTo(x + world.cellSize * 0.18, outerY + trackWidth * 0.88);
+    graphics.moveTo(x, outerY + outerHeight - trackWidth * 0.28);
+    graphics.lineTo(x + world.cellSize * 0.18, outerY + outerHeight - trackWidth * 0.88);
   }
 
   graphics.stroke({
-    color: 0xa9bac8,
-    alpha: 0.08,
-    width: 1,
-  });
-
-  const majorStep = world.cellSize * 4;
-
-  for (let x = innerX; x <= innerX + innerWidth; x += majorStep) {
-    graphics.moveTo(x, innerY);
-    graphics.lineTo(x, innerY + innerHeight);
-  }
-
-  for (let y = innerY; y <= innerY + innerHeight; y += majorStep) {
-    graphics.moveTo(innerX, y);
-    graphics.lineTo(innerX + innerWidth, y);
-  }
-
-  graphics.stroke({
-    color: 0xd9e5ef,
-    alpha: 0.11,
+    color: 0xfff5e6,
+    alpha: 0.3,
     width: 2,
   });
 
-  graphics.circle(centerX, centerY, world.cellSize * 1.18).stroke({
-    color: 0xffcf8b,
-    alpha: 0.28,
-    width: 4,
-  });
-  graphics.circle(centerX, centerY, world.cellSize * 0.28).fill({
-    color: 0xf3f6fb,
-    alpha: 0.16,
-  });
-  graphics.roundRect(
-    centerX - world.cellSize * 2.8,
-    centerY - world.cellSize * 0.68,
-    world.cellSize * 5.6,
-    world.cellSize * 1.36,
-    world.cellSize * 0.22,
-  ).stroke({
-    color: 0xf1f6fc,
-    alpha: 0.12,
-    width: 2.4,
-  });
-
-  for (const burn of decor.burnMarks) {
-    graphics.circle(burn.x, burn.y, burn.radius).fill({
-      color: 0x020304,
-      alpha: burn.alpha,
+  for (const patch of decor.grassPatches) {
+    graphics.ellipse(patch.x, patch.y, patch.width, patch.height).fill({
+      color: 0x4f863f,
+      alpha: patch.alpha,
     });
   }
 
-  for (const scuff of decor.scuffs) {
+  for (const scuff of decor.trackScuffs) {
     graphics.moveTo(scuff.startX, scuff.startY);
     graphics.lineTo(scuff.endX, scuff.endY);
     graphics.stroke({
-      color: 0xf1f4f9,
+      color: 0x6f2d20,
       alpha: scuff.alpha,
       width: scuff.width,
     });
   }
 }
 
-function drawUnderLights(graphics: Graphics, world: WorldConfig) {
-  const { centerX, innerHeight, innerWidth, innerX, innerY } = getArenaBounds(world);
-  const lampGap = world.cellSize * 3.4;
+function drawCampusDetails(graphics: Graphics, world: WorldConfig) {
+  const { outerHeight, outerWidth, outerX, outerY } = getPlaygroundBounds(world);
 
   graphics.clear();
 
-  for (
-    let x = innerX + world.cellSize * 0.85, lampIndex = 0;
-    x < innerX + innerWidth - world.cellSize * 0.5;
-    x += lampGap, lampIndex += 1
-  ) {
-    const color = lampIndex % 2 === 0 ? 0xffa45e : 0x70c2ff;
+  graphics.roundRect(outerX - 10, outerY - 10, outerWidth + 20, outerHeight + 20, world.cellSize * 0.74).stroke({
+    color: 0x9e8f74,
+    alpha: 0.42,
+    width: 8,
+  });
 
-    graphics.circle(x, innerY + 14, world.cellSize * 0.36).fill({
-      color,
-      alpha: 0.08,
-    });
-    graphics.circle(x, innerY + 14, 6).fill({
-      color,
-      alpha: 0.82,
-    });
-    graphics.circle(x, innerY + innerHeight - 14, world.cellSize * 0.34).fill({
-      color,
-      alpha: 0.055,
-    });
-    graphics.circle(x, innerY + innerHeight - 14, 5).fill({
-      color,
-      alpha: 0.6,
-    });
+  for (let x = outerX + world.cellSize * 0.45; x < outerX + outerWidth; x += world.cellSize * 0.58) {
+    graphics.moveTo(x, outerY - world.cellSize * 0.3);
+    graphics.lineTo(x, outerY + world.cellSize * 0.22);
+    graphics.moveTo(x, outerY + outerHeight - world.cellSize * 0.22);
+    graphics.lineTo(x, outerY + outerHeight + world.cellSize * 0.3);
   }
 
-  graphics.ellipse(centerX, innerY + world.cellSize * 0.8, innerWidth * 0.26, world.cellSize * 0.6).fill({
-    color: 0xffbf70,
-    alpha: 0.06,
-  });
-  graphics.ellipse(centerX, innerY + innerHeight - world.cellSize * 0.8, innerWidth * 0.24, world.cellSize * 0.5).fill({
-    color: 0x79c3ff,
-    alpha: 0.04,
-  });
-}
-
-function drawFrameOverlay(graphics: Graphics, world: WorldConfig) {
-  const { innerHeight, innerWidth, innerX, innerY } = getArenaBounds(world);
-  const bracketGap = world.cellSize * 3.8;
-  const moduleWidth = world.cellSize * 0.54;
-  const moduleHeight = world.cellSize * 0.74;
-  const moduleRadius = world.cellSize * 0.12;
-
-  graphics.clear();
-
-  graphics.roundRect(innerX, innerY, innerWidth, innerHeight, world.cellSize * 0.28).stroke({
-    color: 0x040608,
-    alpha: 0.96,
-    width: 18,
-  });
-  graphics.roundRect(
-    innerX + 8,
-    innerY + 8,
-    innerWidth - 16,
-    innerHeight - 16,
-    world.cellSize * 0.2,
-  ).stroke({
-    color: 0xd1dde8,
-    alpha: 0.14,
-    width: 2,
-  });
-
-  for (
-    let x = innerX + world.cellSize * 0.85;
-    x < innerX + innerWidth - world.cellSize * 0.5;
-    x += bracketGap
-  ) {
-    graphics.roundRect(
-      x - moduleWidth / 2,
-      innerY - moduleHeight * 0.32,
-      moduleWidth,
-      moduleHeight,
-      moduleRadius,
-    ).fill({
-      color: 0x070a0e,
-      alpha: 0.95,
-    });
-    graphics.roundRect(
-      x - moduleWidth / 2,
-      innerY + innerHeight - moduleHeight * 0.68,
-      moduleWidth,
-      moduleHeight,
-      moduleRadius,
-    ).fill({
-      color: 0x070a0e,
-      alpha: 0.94,
-    });
-  }
-
-  for (let x = innerX + world.cellSize * 0.6; x < innerX + innerWidth - world.cellSize * 0.5; x += world.cellSize * 0.72) {
-    graphics.moveTo(x, innerY + 18);
-    graphics.lineTo(x + world.cellSize * 0.22, innerY + 4);
-    graphics.moveTo(x, innerY + innerHeight - 18);
-    graphics.lineTo(x + world.cellSize * 0.22, innerY + innerHeight - 4);
+  for (let y = outerY + world.cellSize * 0.4; y < outerY + outerHeight; y += world.cellSize * 0.58) {
+    graphics.moveTo(outerX - world.cellSize * 0.3, y);
+    graphics.lineTo(outerX + world.cellSize * 0.22, y);
+    graphics.moveTo(outerX + outerWidth - world.cellSize * 0.22, y);
+    graphics.lineTo(outerX + outerWidth + world.cellSize * 0.3, y);
   }
 
   graphics.stroke({
-    color: 0xff9a58,
-    alpha: 0.28,
-    width: 3,
+    color: 0x85775e,
+    alpha: 0.3,
+    width: 2,
+  });
+
+  graphics.roundRect(
+    outerX + world.cellSize * 0.24,
+    outerY + world.cellSize * 0.24,
+    world.cellSize * 1.18,
+    world.cellSize * 0.42,
+    12,
+  ).fill({
+    color: 0x627d9b,
+    alpha: 0.84,
+  });
+  graphics.roundRect(
+    outerX + outerWidth - world.cellSize * 1.42,
+    outerY + outerHeight - world.cellSize * 0.66,
+    world.cellSize * 1.18,
+    world.cellSize * 0.42,
+    12,
+  ).fill({
+    color: 0x627d9b,
+    alpha: 0.84,
   });
 }
 
 function drawForegroundOverlay(graphics: Graphics, world: WorldConfig) {
-  const decor = getArenaDecor(world);
-  const { centerX, centerY } = getArenaBounds(world);
+  const decor = getPlaygroundDecor(world);
+  const { centerX, centerY, outerHeight, outerWidth, outerX, outerY } =
+    getPlaygroundBounds(world);
 
   graphics.clear();
 
-  for (const spark of decor.sparks) {
-    graphics.circle(spark.x, spark.y, spark.radius).fill({
-      color: spark.color,
-      alpha: spark.alpha,
+  for (const shadow of decor.treeShadows) {
+    graphics.circle(shadow.x, shadow.y, shadow.radius).fill({
+      color: 0x4f6d39,
+      alpha: shadow.alpha,
     });
   }
 
-  graphics.ellipse(centerX, centerY, world.width * 0.42, world.height * 0.34).stroke({
+  graphics.ellipse(centerX, centerY, world.width * 0.38, world.height * 0.28).fill({
+    color: 0xfff8e1,
+    alpha: 0.045,
+  });
+  graphics.roundRect(outerX, outerY, outerWidth, outerHeight, world.cellSize * 0.7).stroke({
     color: 0xffffff,
-    alpha: 0.035,
-    width: 28,
-  });
-  graphics.rect(0, 0, world.width, world.height * 0.12).fill({
-    color: 0x020304,
-    alpha: 0.34,
-  });
-  graphics.rect(0, world.height * 0.88, world.width, world.height * 0.12).fill({
-    color: 0x020304,
-    alpha: 0.42,
+    alpha: 0.08,
+    width: 18,
   });
 }
 
@@ -422,8 +439,8 @@ export function ArenaScene({
   return (
     <pixiContainer x={offset.x} y={offset.y}>
       <pixiGraphics draw={(graphics) => drawBackdrop(graphics, world)} />
-      <pixiGraphics draw={(graphics) => drawFloor(graphics, world)} />
-      <pixiGraphics draw={(graphics) => drawUnderLights(graphics, world)} />
+      <pixiGraphics draw={(graphics) => drawTrackAndField(graphics, world)} />
+      <pixiGraphics draw={(graphics) => drawCampusDetails(graphics, world)} />
       {snapshot.droppedItems.map((item) => (
         <DroppedItem item={item} key={item.id} serverTime={snapshot.serverTime} />
       ))}
@@ -439,7 +456,6 @@ export function ArenaScene({
       {snapshot.projectiles.map((projectile) => (
         <Projectile key={projectile.id} projectile={projectile} />
       ))}
-      <pixiGraphics draw={(graphics) => drawFrameOverlay(graphics, world)} />
       <pixiGraphics draw={(graphics) => drawForegroundOverlay(graphics, world)} />
     </pixiContainer>
   );

@@ -161,7 +161,7 @@ export function GameCanvas({
                         "mb-1 rounded-full border border-[#171412]/20 px-3 py-1 text-[0.72rem] uppercase tracking-[0.26em] text-[#171412]/60",
                       ].join(" ")}
                     >
-                      {roleAccent?.tag ?? "steel / arena"}
+                      {roleAccent?.tag ?? "track / field"}
                     </span>
                   </div>
                   <p
@@ -170,7 +170,7 @@ export function GameCanvas({
                       "mt-3 max-w-xs text-sm leading-6 text-[#171412]/75",
                     ].join(" ")}
                   >
-                    Steel floor, floodlights, server-authoritative melee. The
+                    Red track, green field, chalk lines. The
                     client only sends intent.
                   </p>
                 </InfoPanel>
@@ -258,7 +258,7 @@ export function GameCanvas({
 
               <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-4 md:p-6">
                 {onLeave ? (
-                  <Button onClick={onLeave}>Leave Arena</Button>
+                  <Button onClick={onLeave}>Leave Field</Button>
                 ) : null}
               </div>
             </>
