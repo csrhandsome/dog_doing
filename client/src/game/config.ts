@@ -24,9 +24,9 @@ export const ROLE_COPY: Record<
   warrior: {
     artSrc: dogdoingArt,
     label: 'Dog Doing',
-    subtitle: 'Frontline pressure',
+    subtitle: '前线压制',
     accentClass: 'from-[#b45030]/20 via-[#b45030]/8 to-transparent',
-    tag: 'steel / rush',
+    tag: '钢铁 / 强攻',
     summary: '更厚实的正面压制感。适合贴脸打断与逼位。',
     spriteScale: 0.22,
     notes: ['攻击轮廓偏硬朗', '格挡正面更可靠', '近战压迫感更强'],
@@ -34,9 +34,9 @@ export const ROLE_COPY: Record<
   mage: {
     artSrc: hajimiArt,
     label: 'Hajimi',
-    subtitle: 'Mobile duelist',
+    subtitle: '机动决斗',
     accentClass: 'from-[#2e6fd8]/20 via-[#2e6fd8]/8 to-transparent',
-    tag: 'ink / orbit',
+    tag: '墨影 / 绕切',
     summary: '更轻、更灵动的纸面游斗感。适合边走边卡角度。',
     spriteScale: 0.145,
     notes: ['轮廓更圆润', '移动姿态更轻', '视觉上更醒目'],
@@ -44,9 +44,9 @@ export const ROLE_COPY: Record<
   bibilabu: {
     artSrc: bibilabuArt,
     label: 'Bibilabu',
-    subtitle: 'Oddball skirmisher',
+    subtitle: '怪招游击',
     accentClass: 'from-[#d2b020]/28 via-[#d2b020]/12 to-transparent',
-    tag: 'banana / trick',
+    tag: '香蕉 / 怪招',
     summary: '怪得很对。视觉更抓眼，适合拿远程武器拉扯和骚扰。',
     spriteScale: 0.165,
     notes: ['轮廓最离谱', '冲进场里会立刻被看到', '拿枪和弓都更有戏'],
@@ -74,7 +74,7 @@ export const WEAPON_COPY: Record<
     arcHeight: 0,
     bulletColor: 0xbd4f31,
     isRanged: false,
-    label: 'Knife',
+    label: '小刀',
     pickupScale: 0.18,
     range: 118,
     spriteScale: 0.14,
@@ -85,7 +85,7 @@ export const WEAPON_COPY: Record<
     arcHeight: 120,
     bulletColor: 0xc48f2c,
     isRanged: true,
-    label: 'Arow',
+    label: '弓箭',
     pickupScale: 0.17,
     range: 680,
     spriteScale: 0.125,
@@ -96,7 +96,7 @@ export const WEAPON_COPY: Record<
     arcHeight: 0,
     bulletColor: 0x171412,
     isRanged: true,
-    label: 'Gun',
+    label: '枪',
     pickupScale: 0.16,
     range: 920,
     spriteScale: 0.115,
@@ -109,7 +109,7 @@ export const RANGED_WEAPON_IDS = WEAPON_ORDER.filter(
 )
 
 export const HUD_KEYS = [
-  { key: 'WASD', label: 'Move' },
-  { key: 'J', label: 'Attack' },
-  { key: 'K', label: 'Guard' },
+  { key: 'WASD', label: '移动' },
+  { key: 'J', label: '攻击' },
+  { key: 'K', label: '格挡' },
 ]

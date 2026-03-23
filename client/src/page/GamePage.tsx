@@ -151,7 +151,7 @@ function GamePage() {
                   "text-[0.7rem] uppercase tracking-[0.34em] text-[#171412]/45",
                 ].join(" ")}
               >
-                choose fighter
+                选择角色
               </p>
               <h1
                 className={[
@@ -251,7 +251,7 @@ function GamePage() {
       playerId={null}
       snapshot={PREVIEW_SNAPSHOT}
       stageBlurred
-      systemMessage="choose fighter"
+      systemMessage="选择角色"
       tickRate={20}
       variant="preview"
       world={DEFAULT_WORLD}

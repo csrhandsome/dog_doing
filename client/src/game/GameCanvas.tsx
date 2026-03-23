@@ -144,7 +144,7 @@ export function GameCanvas({
                       "text-[0.72rem] uppercase tracking-[0.34em] text-[#171412]/55",
                     ].join(" ")}
                   >
-                    live brawl
+                    实时乱斗
                   </p>
                   <div className="mt-2 flex items-end gap-3">
                     <h1
@@ -161,7 +161,7 @@ export function GameCanvas({
                         "mb-1 rounded-full border border-[#171412]/20 px-3 py-1 text-[0.72rem] uppercase tracking-[0.26em] text-[#171412]/60",
                       ].join(" ")}
                     >
-                      {roleAccent?.tag ?? "track / field"}
+                      {roleAccent?.tag ?? "跑道 / 草地"}
                     </span>
                   </div>
                   <p
@@ -170,20 +170,19 @@ export function GameCanvas({
                       "mt-3 max-w-xs text-sm leading-6 text-[#171412]/75",
                     ].join(" ")}
                   >
-                    Red track, green field, chalk lines. The
-                    client only sends intent.
+                    红色跑道、绿色场地、白色粉线。客户端只上报操作意图。
                   </p>
                 </InfoPanel>
 
                 <div className="grid gap-3 sm:min-w-[18rem]">
-                  <InfoPanel label="connection">
+                  <InfoPanel label="连接状态">
                     <p
                       className={[
                         displayFontClass,
                         "mt-2 text-2xl leading-none",
                       ].join(" ")}
                     >
-                      {systemMessage ?? "connected"}
+                      {systemMessage ?? "已连接"}
                     </p>
                     {localPlayer ? (
                       <>
@@ -202,7 +201,7 @@ export function GameCanvas({
                           <span>{localPlayer.name}</span>
                           <span className="text-[#171412]/40">/</span>
                           <span>
-                            {authoritativeLocalPlayer?.hp ?? localPlayer.hp} hp
+                            生命 {authoritativeLocalPlayer?.hp ?? localPlayer.hp}
                           </span>
                         </div>
                         <div
@@ -211,7 +210,7 @@ export function GameCanvas({
                             "mt-2 text-sm text-[#171412]/62",
                           ].join(" ")}
                         >
-                          position {Math.round(localPlayer.x)},{" "}
+                          坐标 {Math.round(localPlayer.x)},{" "}
                           {Math.round(localPlayer.y)}
                         </div>
                         <div
@@ -220,13 +219,13 @@ export function GameCanvas({
                             "mt-1 text-sm text-[#171412]/56",
                           ].join(" ")}
                         >
-                          weapon {WEAPON_COPY[localPlayer.equippedWeapon].label}
+                          武器 {WEAPON_COPY[localPlayer.equippedWeapon].label}
                         </div>
                       </>
                     ) : null}
                   </InfoPanel>
 
-                  <InfoPanel label="controls">
+                  <InfoPanel label="操作说明">
                     <div className="mt-3 flex flex-wrap gap-2">
                       {HUD_KEYS.map((item) => (
                         <div
@@ -258,7 +257,7 @@ export function GameCanvas({
 
               <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-4 md:p-6">
                 {onLeave ? (
-                  <Button onClick={onLeave}>Leave Field</Button>
+                  <Button onClick={onLeave}>离开战场</Button>
                 ) : null}
               </div>
             </>

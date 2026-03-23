@@ -77,14 +77,14 @@ export class GameRoom {
 
   handleOpen(ws: ServerWebSocket<unknown>) {
     this.sockets.set(ws.id, ws)
-    this.sendSystem(ws, 'info', 'connected')
+    this.sendSystem(ws, 'info', '已建立连接')
   }
 
   handleMessage(ws: ServerWebSocket<unknown>, rawMessage: unknown) {
     const message = this.parseClientMessage(rawMessage)
 
     if (!message) {
-      this.sendSystem(ws, 'warn', 'invalid message payload')
+      this.sendSystem(ws, 'warn', '消息格式无效')
       return
     }
 
@@ -96,7 +96,7 @@ export class GameRoom {
     const playerId = this.socketToPlayerId.get(ws.id)
 
     if (!playerId) {
-      this.sendSystem(ws, 'warn', 'join first')
+      this.sendSystem(ws, 'warn', '请先加入对局')
       return
     }
 

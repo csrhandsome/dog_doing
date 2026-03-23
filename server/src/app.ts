@@ -52,7 +52,7 @@ export function createApp(room: GameRoom) {
       const indexFile = Bun.file(CLIENT_INDEX_URL)
 
       if (!(await indexFile.exists())) {
-        return new Response('client bundle missing, run `pnpm run build` at the project root', {
+        return new Response('客户端资源缺失，请在项目根目录运行 `pnpm run build`', {
           status: 503,
         })
       }
@@ -64,7 +64,7 @@ export function createApp(room: GameRoom) {
 
       if (!(await indexFile.exists())) {
         set.status = 404
-        return 'Not Found'
+        return '未找到页面'
       }
 
       const pathname = new URL(request.url).pathname
@@ -86,6 +86,6 @@ export function createApp(room: GameRoom) {
       }
 
       set.status = 404
-      return 'Not Found'
+      return '未找到页面'
     })
 }

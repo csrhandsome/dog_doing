@@ -44,7 +44,7 @@ export function useGameClient(input: InputButtons) {
     tickRate: 20,
     world: DEFAULT_WORLD,
   })
-  const [systemMessage, setSystemMessage] = useState<string>('offline')
+  const [systemMessage, setSystemMessage] = useState<string>('未连接')
   const [error, setError] = useState<string | null>(null)
 
   const socketRef = useRef<WebSocket | null>(null)
@@ -66,7 +66,7 @@ export function useGameClient(input: InputButtons) {
     setStatus(reason ? 'error' : 'idle')
     setPlayerId(null)
     setSnapshot(null)
-    setSystemMessage(reason ?? 'offline')
+    setSystemMessage(reason ?? '未连接')
     setError(reason ?? null)
     seqRef.current = 0
     lastSentRef.current = ''
@@ -82,7 +82,7 @@ export function useGameClient(input: InputButtons) {
     setStatus('connecting')
     setPlayerId(null)
     setSnapshot(null)
-    setSystemMessage('dialing /ws')
+    setSystemMessage('正在连接服务器')
     setError(null)
     seqRef.current = 0
     lastSentRef.current = ''
@@ -95,7 +95,7 @@ export function useGameClient(input: InputButtons) {
         return
       }
 
-      setSystemMessage('joining room')
+      setSystemMessage('正在加入房间')
       socket.send(
         JSON.stringify({
           type: 'join',
@@ -122,7 +122,7 @@ export function useGameClient(input: InputButtons) {
           tickRate: parsed.payload.tickRate,
           world: parsed.payload.world,
         })
-        setSystemMessage('connected')
+        setSystemMessage('已连接')
         setError(null)
         return
       }
@@ -147,8 +147,8 @@ export function useGameClient(input: InputButtons) {
       }
 
       setStatus('error')
-      setError('websocket error')
-      setSystemMessage('transport fault')
+      setError('WebSocket 连接出错')
+      setSystemMessage('传输异常')
     })
 
     socket.addEventListener('close', () => {
@@ -165,8 +165,8 @@ export function useGameClient(input: InputButtons) {
       setStatus('error')
       setPlayerId(null)
       setSnapshot(null)
-      setError('connection closed')
-      setSystemMessage('link dropped')
+      setError('连接已关闭')
+      setSystemMessage('连接中断')
     })
 
     socketRef.current = socket
