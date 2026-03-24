@@ -1,4 +1,6 @@
-export type Role = 'warrior' | 'mage'
+export type Role = 'warrior' | 'mage' | 'bibilabu'
+
+export type WeaponId = 'knife' | 'arow' | 'gun'
 
 export type PlayerAction = 'idle' | 'move' | 'attack' | 'block' | 'hurt' | 'dead'
 
@@ -30,6 +32,7 @@ export type SnapshotPlayer = {
   id: string
   name: string
   role: Role
+  equippedWeapon: WeaponId
   color: number
   x: number
   y: number
@@ -44,9 +47,32 @@ export type SnapshotPlayer = {
   respawnAt: number | null
 }
 
+export type DroppedItemSnapshot = {
+  id: string
+  weaponId: WeaponId
+  x: number
+  y: number
+}
+
+export type ProjectileSnapshot = {
+  id: string
+  ownerId: string
+  weaponId: Exclude<WeaponId, 'knife'>
+  x: number
+  y: number
+  startX: number
+  startY: number
+  endX: number
+  endY: number
+  spawnedAt: number
+  expiresAt: number
+}
+
 export type SnapshotPayload = {
   serverTime: number
   players: SnapshotPlayer[]
+  droppedItems: DroppedItemSnapshot[]
+  projectiles: ProjectileSnapshot[]
 }
 
 export type ServerMessage =

@@ -44,11 +44,12 @@ export function useGameClient(input: InputButtons) {
     tickRate: 20,
     world: DEFAULT_WORLD,
   })
-  const [systemMessage, setSystemMessage] = useState<string>('offline')
+  const [systemMessage, setSystemMessage] = useState<string>('未连接')
   const [error, setError] = useState<string | null>(null)
 
   const socketRef = useRef<WebSocket | null>(null)
   const inputRef = useRef(input)
+  const playerIdRef = useRef<string | null>(null)
   const seqRef = useRef(0)
   const lastSentRef = useRef('')
   const lastSentAtRef = useRef(0)
@@ -58,6 +59,10 @@ export function useGameClient(input: InputButtons) {
     inputRef.current = input
   }, [input])
 
+  useEffect(() => {
+    playerIdRef.current = playerId
+  }, [playerId])
+
   const disconnect = (reason?: string) => {
     manualCloseRef.current = true
     const socket = socketRef.current
@@ -65,8 +70,9 @@ export function useGameClient(input: InputButtons) {
     socket?.close()
     setStatus(reason ? 'error' : 'idle')
     setPlayerId(null)
+    playerIdRef.current = null
     setSnapshot(null)
-    setSystemMessage(reason ?? 'offline')
+    setSystemMessage(reason ?? '未连接')
     setError(reason ?? null)
     seqRef.current = 0
     lastSentRef.current = ''
@@ -81,8 +87,9 @@ export function useGameClient(input: InputButtons) {
     manualCloseRef.current = false
     setStatus('connecting')
     setPlayerId(null)
+    playerIdRef.current = null
     setSnapshot(null)
-    setSystemMessage('dialing /ws')
+    setSystemMessage('正在连接服务器')
     setError(null)
     seqRef.current = 0
     lastSentRef.current = ''
@@ -95,7 +102,7 @@ export function useGameClient(input: InputButtons) {
         return
       }
 
-      setSystemMessage('joining room')
+      setSystemMessage('正在加入房间')
       socket.send(
         JSON.stringify({
           type: 'join',
@@ -116,18 +123,29 @@ export function useGameClient(input: InputButtons) {
       }
 
       if (parsed.type === 'joined') {
+        playerIdRef.current = parsed.payload.playerId
         setStatus('playing')
         setPlayerId(parsed.payload.playerId)
         setConnection({
           tickRate: parsed.payload.tickRate,
           world: parsed.payload.world,
         })
-        setSystemMessage('arena synced')
+        setSystemMessage('已连接')
         setError(null)
         return
       }
 
       if (parsed.type === 'snapshot') {
+        const expectedPlayerId = playerIdRef.current
+
+        if (
+          expectedPlayerId &&
+          !parsed.payload.players.some((player) => player.id === expectedPlayerId)
+        ) {
+          disconnect('玩家已不在当前房间')
+          return
+        }
+
         startTransition(() => {
           setSnapshot(parsed.payload)
         })
@@ -147,8 +165,8 @@ export function useGameClient(input: InputButtons) {
       }
 
       setStatus('error')
-      setError('websocket error')
-      setSystemMessage('transport fault')
+      setError('WebSocket 连接出错')
+      setSystemMessage('传输异常')
     })
 
     socket.addEventListener('close', () => {
@@ -165,8 +183,8 @@ export function useGameClient(input: InputButtons) {
       setStatus('error')
       setPlayerId(null)
       setSnapshot(null)
-      setError('connection closed')
-      setSystemMessage('link dropped')
+      setError('连接已关闭')
+      setSystemMessage('连接中断')
     })
 
     socketRef.current = socket
