@@ -37,8 +37,8 @@ import type {
 const WORLD_WEAPON_IDS: WeaponId[] = ['knife', 'arow', 'gun']
 
 export class GameRoom {
-  private readonly sockets = new Map<string, ServerWebSocket<unknown>>()
-  private readonly socketToPlayerId = new Map<string, string>()
+  private readonly sockets = new Set<ServerWebSocket<unknown>>()
+  private readonly socketToPlayerId = new Map<ServerWebSocket<unknown>, string>()
   private readonly players = new Map<string, Player>()
   private readonly droppedItems = new Map<string, DroppedItem>()
   private readonly projectiles = new Map<string, Projectile>()
@@ -76,7 +76,7 @@ export class GameRoom {
   }
 
   handleOpen(ws: ServerWebSocket<unknown>) {
-    this.sockets.set(ws.id, ws)
+    this.sockets.add(ws)
     this.sendSystem(ws, 'info', '已建立连接')
   }
 
@@ -89,11 +89,11 @@ export class GameRoom {
     }
 
     if (message.type === 'join') {
-      this.handleJoin(ws.id, message.payload.name, message.payload.role, ws)
+      this.handleJoin(message.payload.name, message.payload.role, ws)
       return
     }
 
-    const playerId = this.socketToPlayerId.get(ws.id)
+    const playerId = this.socketToPlayerId.get(ws)
 
     if (!playerId) {
       this.sendSystem(ws, 'warn', '请先加入对局')
@@ -110,19 +110,19 @@ export class GameRoom {
   }
 
   handleClose(ws: ServerWebSocket<unknown>) {
-    const playerId = this.socketToPlayerId.get(ws.id)
+    const playerId = this.socketToPlayerId.get(ws)
 
-    this.sockets.delete(ws.id)
+    this.sockets.delete(ws)
+    this.socketToPlayerId.delete(ws)
 
     if (playerId) {
       this.players.delete(playerId)
-      this.socketToPlayerId.delete(ws.id)
       this.broadcast(this.snapshot(Date.now()))
     }
   }
 
-  private handleJoin(socketId: string, name: string, role: Role, ws: ServerWebSocket<unknown>) {
-    const existingPlayerId = this.socketToPlayerId.get(socketId)
+  private handleJoin(name: string, role: Role, ws: ServerWebSocket<unknown>) {
+    const existingPlayerId = this.socketToPlayerId.get(ws)
 
     if (existingPlayerId) {
       this.players.delete(existingPlayerId)
@@ -130,9 +130,9 @@ export class GameRoom {
 
     this.ensureWorldWeapons()
 
-    const player = this.createPlayer(socketId, name, role)
+    const player = this.createPlayer(name, role)
     this.players.set(player.id, player)
-    this.socketToPlayerId.set(socketId, player.id)
+    this.socketToPlayerId.set(ws, player.id)
 
     this.send(ws, {
       type: 'joined',
@@ -165,14 +165,14 @@ export class GameRoom {
     this.broadcast(this.snapshot(now))
   }
 
-  private createPlayer(socketId: string, name: string, role: Role): Player {
+  private createPlayer(name: string, role: Role): Player {
     const spawn = this.randomSpawn()
     const now = Date.now()
-    const safeName = name.trim().slice(0, 18) || `guest-${socketId.slice(0, 4)}`
+    const guestId = crypto.randomUUID()
+    const safeName = name.trim().slice(0, 18) || `guest-${guestId.slice(0, 4)}`
 
     return {
       id: crypto.randomUUID(),
-      socketId,
       name: safeName,
       role,
       equippedWeapon: 'knife',
@@ -245,7 +245,7 @@ export class GameRoom {
   private broadcast(message: ServerMessage) {
     const encoded = JSON.stringify(message)
 
-    for (const ws of this.sockets.values()) {
+    for (const ws of this.sockets) {
       ws.send(encoded)
     }
   }

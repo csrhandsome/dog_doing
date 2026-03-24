@@ -49,6 +49,7 @@ export function useGameClient(input: InputButtons) {
 
   const socketRef = useRef<WebSocket | null>(null)
   const inputRef = useRef(input)
+  const playerIdRef = useRef<string | null>(null)
   const seqRef = useRef(0)
   const lastSentRef = useRef('')
   const lastSentAtRef = useRef(0)
@@ -58,6 +59,10 @@ export function useGameClient(input: InputButtons) {
     inputRef.current = input
   }, [input])
 
+  useEffect(() => {
+    playerIdRef.current = playerId
+  }, [playerId])
+
   const disconnect = (reason?: string) => {
     manualCloseRef.current = true
     const socket = socketRef.current
@@ -65,6 +70,7 @@ export function useGameClient(input: InputButtons) {
     socket?.close()
     setStatus(reason ? 'error' : 'idle')
     setPlayerId(null)
+    playerIdRef.current = null
     setSnapshot(null)
     setSystemMessage(reason ?? '未连接')
     setError(reason ?? null)
@@ -81,6 +87,7 @@ export function useGameClient(input: InputButtons) {
     manualCloseRef.current = false
     setStatus('connecting')
     setPlayerId(null)
+    playerIdRef.current = null
     setSnapshot(null)
     setSystemMessage('正在连接服务器')
     setError(null)
@@ -116,6 +123,7 @@ export function useGameClient(input: InputButtons) {
       }
 
       if (parsed.type === 'joined') {
+        playerIdRef.current = parsed.payload.playerId
         setStatus('playing')
         setPlayerId(parsed.payload.playerId)
         setConnection({
@@ -128,6 +136,16 @@ export function useGameClient(input: InputButtons) {
       }
 
       if (parsed.type === 'snapshot') {
+        const expectedPlayerId = playerIdRef.current
+
+        if (
+          expectedPlayerId &&
+          !parsed.payload.players.some((player) => player.id === expectedPlayerId)
+        ) {
+          disconnect('玩家已不在当前房间')
+          return
+        }
+
         startTransition(() => {
           setSnapshot(parsed.payload)
         })

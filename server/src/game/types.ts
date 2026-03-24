@@ -27,7 +27,6 @@ export type PlayerAction = 'idle' | 'move' | 'attack' | 'block' | 'hurt' | 'dead
 
 export type Player = {
   id: string
-  socketId: string
   name: string
   role: Role
   equippedWeapon: WeaponId
