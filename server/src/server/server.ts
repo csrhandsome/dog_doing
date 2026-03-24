@@ -1,5 +1,3 @@
-import type { ServerWebSocket } from "bun";
-
 import {
   ACTION_STATE_MS,
   ATTACK_ANIMATION_MS,
@@ -21,8 +19,8 @@ import {
   WEAPON_PICKUP_RADIUS,
   WEAPON_STATS,
   WORLD,
-} from "./config";
-import { clamp, directionFromInput, normalize } from "./math";
+} from "../game/config";
+import { clamp, directionFromInput, normalize } from "../game/math";
 import type {
   ClientMessage,
   DroppedItem,
@@ -34,28 +32,73 @@ import type {
   ServerMessage,
   ServerSnapshotMessage,
   WeaponId,
-} from "./types";
+} from "../game/types";
 
 const WORLD_WEAPON_IDS: WeaponId[] = ["knife", "arow", "gun"];
 
+type PendingDroppedWeapon = {
+  respawnAt: number;
+  weaponId: WeaponId;
+};
+
+export type GameSocket = {
+  readonly id: string;
+  send(data: string): unknown;
+};
+
 export class GameRoom {
-  private readonly sockets = new Map<string, ServerWebSocket<unknown>>();
+  private readonly sockets = new Map<string, GameSocket>();
   private readonly socketToPlayerId = new Map<string, string>();
   private readonly players = new Map<string, Player>();
   private readonly droppedItems = new Map<string, DroppedItem>();
   private readonly projectiles = new Map<string, Projectile>();
-  private pendingDroppedWeapons: Array<{
-    respawnAt: number;
-    weaponId: WeaponId;
-  }> = [];
+  private pendingDroppedWeapons: PendingDroppedWeapon[] = [];
   private interval: ReturnType<typeof setInterval> | null = null;
   private previousTick = Date.now();
 
   getHealth() {
     return {
       ok: true,
+      running: this.interval !== null,
       players: this.players.size,
+      sockets: this.sockets.size,
       tickRate: TICK_RATE,
+    };
+  }
+
+  getPlayersDebug(now = Date.now()) {
+    return {
+      ok: true,
+      generatedAt: now,
+      players: Array.from(this.players.values()).map((player) =>
+        this.toDebugPlayer(player, now),
+      ),
+    };
+  }
+
+  getStateDebug(now = Date.now()) {
+    return {
+      ok: true,
+      generatedAt: now,
+      running: this.interval !== null,
+      tickRate: TICK_RATE,
+      world: WORLD,
+      socketCount: this.sockets.size,
+      playerCount: this.players.size,
+      pendingDroppedWeaponCount: this.pendingDroppedWeapons.length,
+      socketBindings: Array.from(this.socketToPlayerId.entries()).map(
+        ([socketId, playerId]) => ({
+          socketId,
+          playerId,
+        }),
+      ),
+      pendingDroppedWeapons: this.pendingDroppedWeapons.map(
+        ({ weaponId, respawnAt }) => ({
+          weaponId,
+          respawnAt,
+        }),
+      ),
+      snapshot: this.snapshot(now).payload,
     };
   }
 
@@ -80,12 +123,12 @@ export class GameRoom {
     this.interval = null;
   }
 
-  handleOpen(ws: ServerWebSocket<unknown>) {
+  handleOpen(ws: GameSocket) {
     this.sockets.set(ws.id, ws);
     this.sendSystem(ws, "info", "已建立连接");
   }
 
-  handleMessage(ws: ServerWebSocket<unknown>, rawMessage: unknown) {
+  handleMessage(ws: GameSocket, rawMessage: unknown) {
     const message = this.parseClientMessage(rawMessage);
 
     if (!message) {
@@ -114,7 +157,7 @@ export class GameRoom {
     player.input = this.toInputState(message.payload);
   }
 
-  handleClose(ws: ServerWebSocket<unknown>) {
+  handleClose(ws: GameSocket) {
     const playerId = this.socketToPlayerId.get(ws.id);
 
     this.sockets.delete(ws.id);
@@ -130,7 +173,7 @@ export class GameRoom {
     socketId: string,
     name: string,
     role: Role,
-    ws: ServerWebSocket<unknown>,
+    ws: GameSocket,
   ) {
     const existingPlayerId = this.socketToPlayerId.get(socketId);
 
@@ -178,7 +221,8 @@ export class GameRoom {
   private createPlayer(socketId: string, name: string, role: Role): Player {
     const spawn = this.randomSpawn();
     const now = Date.now();
-    const safeName = name.trim().slice(0, 18) || `guest-${socketId.slice(0, 4)}`;
+    const safeName =
+      name.trim().slice(0, 18) || `guest-${socketId.slice(0, 4)}`;
 
     return {
       id: crypto.randomUUID(),
@@ -238,15 +282,11 @@ export class GameRoom {
     };
   }
 
-  private send(ws: ServerWebSocket<unknown>, message: ServerMessage) {
+  private send(ws: GameSocket, message: ServerMessage) {
     ws.send(JSON.stringify(message));
   }
 
-  private sendSystem(
-    ws: ServerWebSocket<unknown>,
-    level: "info" | "warn",
-    message: string,
-  ) {
+  private sendSystem(ws: GameSocket, level: "info" | "warn", message: string) {
     this.send(ws, {
       type: "system",
       payload: {
@@ -264,46 +304,89 @@ export class GameRoom {
     }
   }
 
+  private toPlayerSnapshot(player: Player) {
+    return {
+      id: player.id,
+      name: player.name,
+      role: player.role,
+      equippedWeapon: player.equippedWeapon,
+      color: player.color,
+      x: Number(player.x.toFixed(2)),
+      y: Number(player.y.toFixed(2)),
+      hp: player.hp,
+      maxHp: player.maxHp,
+      facing: player.facing,
+      action: player.action,
+      lastProcessedSeq: player.lastProcessedSeq,
+      respawnAt: player.respawnAt,
+    };
+  }
+
+  private toDroppedItemSnapshot(item: DroppedItem) {
+    return {
+      id: item.id,
+      weaponId: item.weaponId,
+      x: Number(item.x.toFixed(2)),
+      y: Number(item.y.toFixed(2)),
+    };
+  }
+
+  private toProjectileSnapshot(projectile: Projectile) {
+    return {
+      id: projectile.id,
+      ownerId: projectile.ownerId,
+      weaponId: projectile.weaponId,
+      x: Number(projectile.x.toFixed(2)),
+      y: Number(projectile.y.toFixed(2)),
+      startX: Number(projectile.startX.toFixed(2)),
+      startY: Number(projectile.startY.toFixed(2)),
+      endX: Number(projectile.endX.toFixed(2)),
+      endY: Number(projectile.endY.toFixed(2)),
+      spawnedAt: projectile.spawnedAt,
+      expiresAt: projectile.expiresAt,
+    };
+  }
+
+  private toDebugPlayer(player: Player, now: number) {
+    return {
+      id: player.id,
+      socketId: player.socketId,
+      connected: this.sockets.has(player.socketId),
+      isAlive: this.isAlive(player, now),
+      name: player.name,
+      role: player.role,
+      equippedWeapon: player.equippedWeapon,
+      color: player.color,
+      x: Number(player.x.toFixed(2)),
+      y: Number(player.y.toFixed(2)),
+      hp: player.hp,
+      maxHp: player.maxHp,
+      radius: player.radius,
+      speed: player.speed,
+      facing: player.facing,
+      action: player.action,
+      actionUntil: player.actionUntil,
+      input: player.input,
+      attackCooldownUntil: player.attackCooldownUntil,
+      invulnerableUntil: player.invulnerableUntil,
+      respawnAt: player.respawnAt,
+      lastProcessedSeq: player.lastProcessedSeq,
+    };
+  }
+
   private snapshot(now: number): ServerSnapshotMessage {
     return {
       type: "snapshot",
       payload: {
         serverTime: now,
-        players: Array.from(this.players.values()).map((player) => ({
-          id: player.id,
-          name: player.name,
-          role: player.role,
-          equippedWeapon: player.equippedWeapon,
-          color: player.color,
-          x: Number(player.x.toFixed(2)),
-          y: Number(player.y.toFixed(2)),
-          hp: player.hp,
-          maxHp: player.maxHp,
-          facing: player.facing,
-          action: player.action,
-          lastProcessedSeq: player.lastProcessedSeq,
-          respawnAt: player.respawnAt,
-        })),
-        droppedItems: Array.from(this.droppedItems.values()).map((item) => ({
-          id: item.id,
-          weaponId: item.weaponId,
-          x: Number(item.x.toFixed(2)),
-          y: Number(item.y.toFixed(2)),
-        })),
-        projectiles: Array.from(this.projectiles.values()).map(
-          (projectile) => ({
-            id: projectile.id,
-            ownerId: projectile.ownerId,
-            weaponId: projectile.weaponId,
-            x: Number(projectile.x.toFixed(2)),
-            y: Number(projectile.y.toFixed(2)),
-            startX: Number(projectile.startX.toFixed(2)),
-            startY: Number(projectile.startY.toFixed(2)),
-            endX: Number(projectile.endX.toFixed(2)),
-            endY: Number(projectile.endY.toFixed(2)),
-            spawnedAt: projectile.spawnedAt,
-            expiresAt: projectile.expiresAt,
-          }),
+        players: Array.from(this.players.values()).map((player) =>
+          this.toPlayerSnapshot(player),
+        ),
+        droppedItems: Array.from(this.droppedItems.values()).map((item) =>
+          this.toDroppedItemSnapshot(item),
+        ),
+        projectiles: Array.from(this.projectiles.values()).map((projectile) =>
+          this.toProjectileSnapshot(projectile),
         ),
       },
     };
@@ -371,7 +454,7 @@ export class GameRoom {
 
   private respawnDroppedWeapons(now: number) {
     const ready: WeaponId[] = [];
-    const waiting: Array<{ respawnAt: number; weaponId: WeaponId }> = [];
+    const waiting: PendingDroppedWeapon[] = [];
 
     for (const item of this.pendingDroppedWeapons) {
       if (item.respawnAt <= now) {

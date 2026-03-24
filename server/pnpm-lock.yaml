@@ -10,11 +10,14 @@ importers:
     dependencies:
       elysia:
         specifier: ^1.4.28
-        version: 1.4.28(@sinclair/typebox@0.34.48)(@types/bun@1.3.11)(exact-mirror@0.2.7(@sinclair/typebox@0.34.48))(file-type@21.3.3)(openapi-types@12.1.3)
+        version: 1.4.28(@sinclair/typebox@0.34.48)(@types/bun@1.3.11)(exact-mirror@0.2.7(@sinclair/typebox@0.34.48))(file-type@21.3.3)(openapi-types@12.1.3)(typescript@5.9.3)
     devDependencies:
       '@types/bun':
         specifier: ^1.3.11
         version: 1.3.11
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
 
 packages:
 
@@ -103,6 +106,11 @@ packages:
     resolution: {integrity: sha512-dRXchy+C0IgK8WPC6xvCHFRIWYUbqqdEIKPaKo/AcTUNzwLTK6AH7RjdLWsEZcAN/TBdtfUw3PYEgPr5VPr6ww==}
     engines: {node: '>=14.16'}
 
+  typescript@5.9.3:
+    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
   uint8array-extras@1.5.0:
     resolution: {integrity: sha512-rvKSBiC5zqCCiDZ9kAOszZcDvdAHwwIKJG33Ykj43OKcWsnmcBRL09YTU4nOeHZ8Y2a7l1MgTd08SBe9A8Qj6A==}
     engines: {node: '>=18'}
@@ -143,7 +151,7 @@ snapshots:
     dependencies:
       ms: 2.1.3
 
-  elysia@1.4.28(@sinclair/typebox@0.34.48)(@types/bun@1.3.11)(exact-mirror@0.2.7(@sinclair/typebox@0.34.48))(file-type@21.3.3)(openapi-types@12.1.3):
+  elysia@1.4.28(@sinclair/typebox@0.34.48)(@types/bun@1.3.11)(exact-mirror@0.2.7(@sinclair/typebox@0.34.48))(file-type@21.3.3)(openapi-types@12.1.3)(typescript@5.9.3):
     dependencies:
       '@sinclair/typebox': 0.34.48
       cookie: 1.1.1
@@ -154,6 +162,7 @@ snapshots:
       openapi-types: 12.1.3
     optionalDependencies:
       '@types/bun': 1.3.11
+      typescript: 5.9.3
 
   exact-mirror@0.2.7(@sinclair/typebox@0.34.48):
     optionalDependencies:
@@ -187,6 +196,8 @@ snapshots:
       '@borewit/text-codec': 0.2.2
       '@tokenizer/token': 0.3.0
       ieee754: 1.2.1
+
+  typescript@5.9.3: {}
 
   uint8array-extras@1.5.0: {}
 
