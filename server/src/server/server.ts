@@ -33,6 +33,7 @@ import type {
   ServerSnapshotMessage,
   WeaponId,
 } from "../game/types";
+import type { ServerRuntimeInfo } from "./runtime";
 
 const WORLD_WEAPON_IDS: WeaponId[] = ["knife", "arow", "gun"];
 
@@ -55,6 +56,11 @@ export class GameRoom {
   private pendingDroppedWeapons: PendingDroppedWeapon[] = [];
   private interval: ReturnType<typeof setInterval> | null = null;
   private previousTick = Date.now();
+  private readonly runtime: ServerRuntimeInfo;
+
+  constructor(runtime: ServerRuntimeInfo) {
+    this.runtime = runtime;
+  }
 
   getHealth() {
     return {
@@ -63,6 +69,7 @@ export class GameRoom {
       players: this.players.size,
       sockets: this.sockets.size,
       tickRate: TICK_RATE,
+      instance: this.runtime,
     };
   }
 
@@ -70,6 +77,7 @@ export class GameRoom {
     return {
       ok: true,
       generatedAt: now,
+      instance: this.runtime,
       players: Array.from(this.players.values()).map((player) =>
         this.toDebugPlayer(player, now),
       ),
@@ -82,6 +90,7 @@ export class GameRoom {
       generatedAt: now,
       running: this.interval !== null,
       tickRate: TICK_RATE,
+      instance: this.runtime,
       world: WORLD,
       socketCount: this.sockets.size,
       playerCount: this.players.size,

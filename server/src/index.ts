@@ -2,9 +2,11 @@ import { websocket } from "elysia/ws";
 
 import { createApp } from "./app";
 import { SERVER_CONFIG } from "./game/config";
+import { acquireServerRuntimeInfo } from "./server/runtime";
 import { GameRoom } from "./server/server";
 
-const room = new GameRoom();
+const runtime = acquireServerRuntimeInfo(SERVER_CONFIG.port);
+const room = new GameRoom(runtime);
 const app = createApp(room);
 
 app.listen({
@@ -27,4 +29,9 @@ console.log(
 );
 console.log(
   `websocket endpoint available at ws://${displayHost}:${displayPort}/ws`,
+);
+console.log(
+  `instance ${runtime.instanceId} pid=${runtime.pid} hostname=${runtime.hostname}${
+    runtime.lockPath ? ` lock=${runtime.lockPath}` : " lock=disabled"
+  }`,
 );
