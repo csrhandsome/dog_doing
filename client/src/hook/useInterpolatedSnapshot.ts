@@ -4,6 +4,7 @@ import type {
   ProjectileSnapshot,
   SnapshotPayload,
   SnapshotPlayer,
+  SoccerBallSnapshot,
 } from "../game/protocol";
 
 const FALLBACK_TICK_MS = 50;
@@ -47,7 +48,9 @@ function interpolateSnapshot(
   );
 
   return {
+    match: current.match,
     serverTime: current.serverTime,
+    soccerBall: interpolateSoccerBall(previous.soccerBall, current.soccerBall, alpha),
     droppedItems: current.droppedItems,
     players: current.players.map((player) => {
       const previousPlayer = previousPlayers.get(player.id);
@@ -68,12 +71,34 @@ function interpolateSnapshot(
   };
 }
 
+function interpolateSoccerBall(
+  previous: SoccerBallSnapshot | null,
+  current: SoccerBallSnapshot | null,
+  alpha: number,
+) {
+  if (!current || !previous || previous.radius !== current.radius) {
+    return current;
+  }
+
+  return {
+    ...current,
+    vx: lerp(previous.vx, current.vx, alpha),
+    vy: lerp(previous.vy, current.vy, alpha),
+    x: lerp(previous.x, current.x, alpha),
+    y: lerp(previous.y, current.y, alpha),
+  };
+}
+
 function interpolateProjectile(
   previous: ProjectileSnapshot | undefined,
   current: ProjectileSnapshot,
   alpha: number,
 ) {
-  if (!previous || previous.weaponId !== current.weaponId) {
+  if (
+    !previous ||
+    previous.weaponId !== current.weaponId ||
+    previous.effect !== current.effect
+  ) {
     return current;
   }
 

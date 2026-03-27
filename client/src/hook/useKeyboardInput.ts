@@ -29,8 +29,21 @@ function isEditableTarget(target: EventTarget | null) {
   )
 }
 
-export function useKeyboardInput(enabled: boolean) {
+export function useKeyboardInput(enabled: boolean, canBlock = true) {
   const [input, setInput] = useState<InputButtons>(createResetInput)
+
+  useEffect(() => {
+    if (!canBlock) {
+      setInput((previous) =>
+        previous.block
+          ? {
+              ...previous,
+              block: false,
+            }
+          : previous,
+      )
+    }
+  }, [canBlock])
 
   useEffect(() => {
     if (!enabled) {
@@ -41,6 +54,10 @@ export function useKeyboardInput(enabled: boolean) {
       const binding = KEY_BINDINGS[event.code]
 
       if (!binding || isEditableTarget(event.target)) {
+        return
+      }
+
+      if (binding === 'block' && !canBlock) {
         return
       }
 
@@ -79,7 +96,7 @@ export function useKeyboardInput(enabled: boolean) {
       window.removeEventListener('keyup', handleKeyUp)
       window.removeEventListener('blur', handleBlur)
     }
-  }, [enabled])
+  }, [canBlock, enabled])
 
   return enabled ? input : EMPTY_INPUT
 }

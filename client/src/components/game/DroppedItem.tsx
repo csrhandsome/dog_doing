@@ -26,6 +26,11 @@ function drawPickupGlow(graphics: Graphics, item: DroppedItemSnapshot, bob: numb
   const weapon = WEAPON_COPY[item.weaponId];
 
   graphics.clear();
+
+  if (!weapon) {
+    return;
+  }
+
   graphics.ellipse(0, 20, 18, 6).fill({
     color: 0x05070b,
     alpha: 0.35,
@@ -46,7 +51,9 @@ export function DroppedItem({ item, serverTime }: DroppedItemProps) {
   const weapon = WEAPON_COPY[item.weaponId];
   const phase = hashPhase(item.id);
   const bob = Math.sin(serverTime / 220 + phase) * 5;
-  const scale = weapon.pickupScale * (1 + Math.sin(serverTime / 320 + phase) * 0.03);
+  const scale = weapon
+    ? weapon.pickupScale * (1 + Math.sin(serverTime / 320 + phase) * 0.03)
+    : 0.17;
 
   return (
     <pixiContainer x={item.x} y={item.y}>

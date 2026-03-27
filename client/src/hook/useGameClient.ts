@@ -1,7 +1,11 @@
 import { startTransition, useEffect, useRef, useState } from 'react'
 
 import {
+  EMPTY_INPUT,
   DEFAULT_WORLD,
+  type AnnouncementPayload,
+  type CardOfferPayload,
+  type ClientChooseCardPayload,
   type ClientJoinPayload,
   type InputButtons,
   type ServerMessage,
@@ -44,6 +48,8 @@ export function useGameClient(input: InputButtons) {
     tickRate: 20,
     world: DEFAULT_WORLD,
   })
+  const [announcement, setAnnouncement] = useState<AnnouncementPayload | null>(null)
+  const [cardOffer, setCardOffer] = useState<CardOfferPayload | null>(null)
   const [systemMessage, setSystemMessage] = useState<string>('未连接')
   const [error, setError] = useState<string | null>(null)
 
@@ -72,6 +78,8 @@ export function useGameClient(input: InputButtons) {
     setPlayerId(null)
     playerIdRef.current = null
     setSnapshot(null)
+    setAnnouncement(null)
+    setCardOffer(null)
     setSystemMessage(reason ?? '未连接')
     setError(reason ?? null)
     seqRef.current = 0
@@ -89,6 +97,8 @@ export function useGameClient(input: InputButtons) {
     setPlayerId(null)
     playerIdRef.current = null
     setSnapshot(null)
+    setAnnouncement(null)
+    setCardOffer(null)
     setSystemMessage('正在连接服务器')
     setError(null)
     seqRef.current = 0
@@ -152,6 +162,16 @@ export function useGameClient(input: InputButtons) {
         return
       }
 
+      if (parsed.type === 'announcement') {
+        setAnnouncement(parsed.payload)
+        return
+      }
+
+      if (parsed.type === 'card-offer') {
+        setCardOffer(parsed.payload)
+        return
+      }
+
       setSystemMessage(parsed.payload.message)
 
       if (parsed.payload.level === 'warn') {
@@ -183,6 +203,8 @@ export function useGameClient(input: InputButtons) {
       setStatus('error')
       setPlayerId(null)
       setSnapshot(null)
+      setAnnouncement(null)
+      setCardOffer(null)
       setError('连接已关闭')
       setSystemMessage('连接中断')
     })
@@ -202,8 +224,9 @@ export function useGameClient(input: InputButtons) {
         return
       }
 
+      const inputState = cardOffer ? EMPTY_INPUT : inputRef.current
       const payload = {
-        ...inputRef.current,
+        ...inputState,
         seq: ++seqRef.current,
       }
       const encoded = JSON.stringify({
@@ -226,7 +249,7 @@ export function useGameClient(input: InputButtons) {
     return () => {
       window.clearInterval(interval)
     }
-  }, [status])
+  }, [cardOffer, status])
 
   useEffect(() => {
     return () => {
@@ -236,11 +259,29 @@ export function useGameClient(input: InputButtons) {
     }
   }, [])
 
+  const chooseCard = (payload: ClientChooseCardPayload) => {
+    const socket = socketRef.current
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return
+    }
+
+    socket.send(
+      JSON.stringify({
+        type: 'choose-card',
+        payload,
+      }),
+    )
+  }
+
   return {
+    cardOffer,
     connect,
     connection,
     disconnect,
     error,
+    announcement,
+    chooseCard,
     playerId,
     snapshot,
     status,

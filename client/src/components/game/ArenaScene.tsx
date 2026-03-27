@@ -2,9 +2,12 @@ import { extend } from "@pixi/react";
 import { Container, Graphics } from "pixi.js";
 
 import type { SnapshotPayload, WorldConfig } from "../../game/protocol";
+import { getPitchBounds } from "../../game/world";
 import { DroppedItem } from "./DroppedItem";
+import { Goal } from "./Goal";
 import { PlayerSprite } from "./PlayerHealthBar";
 import { Projectile, ProjectileGuide } from "./Projectile";
+import { SoccerBall } from "./SoccerBall";
 
 extend({ Container, Graphics });
 
@@ -14,6 +17,7 @@ type ArenaSceneProps = {
     y: number;
   };
   playerId?: string | null;
+  scale: number;
   snapshot: SnapshotPayload;
   world: WorldConfig;
 };
@@ -51,9 +55,6 @@ const playgroundCache = new Map<
   }
 >();
 
-// Keep the scene boundary aligned with the current server-side movement clamp.
-const WORLD_EDGE_PADDING = 22;
-
 function createSeededRandom(seed: number) {
   let value = seed;
 
@@ -64,33 +65,11 @@ function createSeededRandom(seed: number) {
 }
 
 function getPlaygroundBounds(world: WorldConfig) {
-  const margin = WORLD_EDGE_PADDING;
-  const trackWidth = world.cellSize * 1.08;
-  const fieldInset = margin + trackWidth;
-  const outerWidth = world.width - margin * 2;
-  const outerHeight = world.height - margin * 2;
-  const fieldWidth = world.width - fieldInset * 2;
-  const fieldHeight = world.height - fieldInset * 2;
-
-  return {
-    centerX: world.width / 2,
-    centerY: world.height / 2,
-    fieldHeight,
-    fieldInset,
-    fieldWidth,
-    fieldX: fieldInset,
-    fieldY: fieldInset,
-    margin,
-    outerHeight,
-    outerWidth,
-    outerX: margin,
-    outerY: margin,
-    trackWidth,
-  };
+  return getPitchBounds(world);
 }
 
 function getPlaygroundDecor(world: WorldConfig) {
-  const key = `${world.width}-${world.height}-${world.cellSize}`;
+  const key = `${world.width}-${world.height}-${world.cellSize}-${world.playableInset}`;
   const cached = playgroundCache.get(key);
 
   if (cached) {
@@ -163,7 +142,9 @@ function getPlaygroundDecor(world: WorldConfig) {
 }
 
 function drawBackdrop(graphics: Graphics, world: WorldConfig) {
-  const { centerX, centerY } = getPlaygroundBounds(world);
+  const { centerX, centerY, outerHeight, outerWidth, outerX, outerY } =
+    getPlaygroundBounds(world);
+  const apron = world.cellSize * 0.8;
 
   graphics.clear();
   graphics.rect(0, 0, world.width, world.height).fill({ color: 0xd8c9a9 });
@@ -187,6 +168,32 @@ function drawBackdrop(graphics: Graphics, world: WorldConfig) {
     color: 0xffffff,
     alpha: 0.035,
   });
+  graphics.roundRect(
+    outerX - apron,
+    outerY - apron,
+    outerWidth + apron * 2,
+    outerHeight + apron * 2,
+    world.cellSize,
+  ).fill({
+    color: 0xb08f67,
+    alpha: 0.34,
+  });
+  graphics.rect(0, 0, world.width, outerY).fill({
+    color: 0x9a8766,
+    alpha: 0.18,
+  });
+  graphics.rect(0, outerY, outerX, outerHeight).fill({
+    color: 0x9a8766,
+    alpha: 0.18,
+  });
+  graphics.rect(outerX + outerWidth, outerY, world.width - outerX - outerWidth, outerHeight).fill({
+    color: 0x9a8766,
+    alpha: 0.18,
+  });
+  graphics.rect(0, outerY + outerHeight, world.width, world.height - outerY - outerHeight).fill({
+    color: 0x9a8766,
+    alpha: 0.18,
+  });
 }
 
 function drawTrackAndField(graphics: Graphics, world: WorldConfig) {
@@ -202,7 +209,11 @@ function drawTrackAndField(graphics: Graphics, world: WorldConfig) {
     outerWidth,
     outerX,
     outerY,
+    penaltyBoxHeight,
+    penaltyBoxWidth,
     trackWidth,
+    goalBoxHeight,
+    goalBoxWidth,
   } = getPlaygroundBounds(world);
   const outerRadius = world.cellSize * 0.7;
   const fieldRadius = world.cellSize * 0.44;
@@ -270,11 +281,6 @@ function drawTrackAndField(graphics: Graphics, world: WorldConfig) {
     color: 0xfefcf6,
     alpha: 0.92,
   });
-
-  const penaltyBoxWidth = world.cellSize * 2.4;
-  const penaltyBoxHeight = world.cellSize * 4.9;
-  const goalBoxWidth = world.cellSize * 1.12;
-  const goalBoxHeight = world.cellSize * 2.36;
 
   graphics.rect(fieldX, centerY - penaltyBoxHeight / 2, penaltyBoxWidth, penaltyBoxHeight).stroke({
     color: 0xfefcf6,
@@ -352,38 +358,90 @@ function drawTrackAndField(graphics: Graphics, world: WorldConfig) {
 
 function drawCampusDetails(graphics: Graphics, world: WorldConfig) {
   const { outerHeight, outerWidth, outerX, outerY } = getPlaygroundBounds(world);
+  const fenceOffset = world.cellSize * 0.14;
+  const fenceRadius = world.cellSize * 0.78;
 
   graphics.clear();
 
-  graphics.roundRect(outerX - 10, outerY - 10, outerWidth + 20, outerHeight + 20, world.cellSize * 0.74).stroke({
-    color: 0x9e8f74,
-    alpha: 0.42,
-    width: 8,
+  graphics.roundRect(
+    outerX - fenceOffset * 0.7,
+    outerY - fenceOffset * 0.7,
+    outerWidth + fenceOffset * 1.4,
+    outerHeight + fenceOffset * 1.4,
+    fenceRadius,
+  ).stroke({
+    color: 0x5b3d1f,
+    alpha: 0.28,
+    width: 16,
   });
-
-  for (let x = outerX + world.cellSize * 0.45; x < outerX + outerWidth; x += world.cellSize * 0.58) {
-    graphics.moveTo(x, outerY - world.cellSize * 0.3);
-    graphics.lineTo(x, outerY + world.cellSize * 0.22);
-    graphics.moveTo(x, outerY + outerHeight - world.cellSize * 0.22);
-    graphics.lineTo(x, outerY + outerHeight + world.cellSize * 0.3);
-  }
-
-  for (let y = outerY + world.cellSize * 0.4; y < outerY + outerHeight; y += world.cellSize * 0.58) {
-    graphics.moveTo(outerX - world.cellSize * 0.3, y);
-    graphics.lineTo(outerX + world.cellSize * 0.22, y);
-    graphics.moveTo(outerX + outerWidth - world.cellSize * 0.22, y);
-    graphics.lineTo(outerX + outerWidth + world.cellSize * 0.3, y);
-  }
-
-  graphics.stroke({
-    color: 0x85775e,
-    alpha: 0.3,
+  graphics.roundRect(
+    outerX - 4,
+    outerY - 4,
+    outerWidth + 8,
+    outerHeight + 8,
+    fenceRadius - 2,
+  ).stroke({
+    color: 0x724620,
+    alpha: 0.96,
+    width: 7,
+  });
+  graphics.roundRect(
+    outerX + 6,
+    outerY + 6,
+    outerWidth - 12,
+    outerHeight - 12,
+    fenceRadius - 10,
+  ).stroke({
+    color: 0xf4dcaa,
+    alpha: 0.34,
     width: 2,
   });
 
+  for (
+    let x = outerX + world.cellSize * 0.34;
+    x < outerX + outerWidth - world.cellSize * 0.24;
+    x += world.cellSize * 0.56
+  ) {
+    graphics.roundRect(x, outerY - world.cellSize * 0.2, 10, world.cellSize * 0.42, 5).fill({
+      color: 0x855126,
+      alpha: 0.94,
+    });
+    graphics.roundRect(
+      x,
+      outerY + outerHeight - world.cellSize * 0.22,
+      10,
+      world.cellSize * 0.42,
+      5,
+    ).fill({
+      color: 0x855126,
+      alpha: 0.94,
+    });
+  }
+
+  for (
+    let y = outerY + world.cellSize * 0.34;
+    y < outerY + outerHeight - world.cellSize * 0.24;
+    y += world.cellSize * 0.56
+  ) {
+    graphics.roundRect(outerX - world.cellSize * 0.2, y, world.cellSize * 0.42, 10, 5).fill({
+      color: 0x855126,
+      alpha: 0.94,
+    });
+    graphics.roundRect(
+      outerX + outerWidth - world.cellSize * 0.22,
+      y,
+      world.cellSize * 0.42,
+      10,
+      5,
+    ).fill({
+      color: 0x855126,
+      alpha: 0.94,
+    });
+  }
+
   graphics.roundRect(
-    outerX + world.cellSize * 0.24,
-    outerY + world.cellSize * 0.24,
+    outerX + world.cellSize * 0.26,
+    outerY + world.cellSize * 0.26,
     world.cellSize * 1.18,
     world.cellSize * 0.42,
     12,
@@ -392,8 +450,8 @@ function drawCampusDetails(graphics: Graphics, world: WorldConfig) {
     alpha: 0.84,
   });
   graphics.roundRect(
-    outerX + outerWidth - world.cellSize * 1.42,
-    outerY + outerHeight - world.cellSize * 0.66,
+    outerX + outerWidth - world.cellSize * 1.44,
+    outerY + outerHeight - world.cellSize * 0.68,
     world.cellSize * 1.18,
     world.cellSize * 0.42,
     12,
@@ -405,7 +463,7 @@ function drawCampusDetails(graphics: Graphics, world: WorldConfig) {
 
 function drawForegroundOverlay(graphics: Graphics, world: WorldConfig) {
   const decor = getPlaygroundDecor(world);
-  const { centerX, centerY, outerHeight, outerWidth, outerX, outerY } =
+  const { centerX, centerY, fieldHeight, fieldWidth, fieldX, fieldY, outerHeight, outerWidth, outerX, outerY } =
     getPlaygroundBounds(world);
 
   graphics.clear();
@@ -421,30 +479,54 @@ function drawForegroundOverlay(graphics: Graphics, world: WorldConfig) {
     color: 0xfff8e1,
     alpha: 0.045,
   });
+  graphics.rect(0, 0, world.width, outerY).fill({
+    color: 0x46331f,
+    alpha: 0.08,
+  });
+  graphics.rect(0, outerY, outerX, outerHeight).fill({
+    color: 0x46331f,
+    alpha: 0.08,
+  });
+  graphics.rect(outerX + outerWidth, outerY, world.width - outerX - outerWidth, outerHeight).fill({
+    color: 0x46331f,
+    alpha: 0.08,
+  });
+  graphics.rect(0, outerY + outerHeight, world.width, world.height - outerY - outerHeight).fill({
+    color: 0x46331f,
+    alpha: 0.08,
+  });
   graphics.roundRect(outerX, outerY, outerWidth, outerHeight, world.cellSize * 0.7).stroke({
     color: 0xffffff,
     alpha: 0.08,
     width: 18,
+  });
+  graphics.roundRect(fieldX, fieldY, fieldWidth, fieldHeight, world.cellSize * 0.44).fill({
+    color: 0xffffff,
+    alpha: 0.025,
   });
 }
 
 export function ArenaScene({
   offset,
   playerId,
+  scale,
   snapshot,
   world,
 }: ArenaSceneProps) {
   const localPlayer = snapshot.players.find((player) => player.id === playerId);
 
   return (
-    <pixiContainer x={offset.x} y={offset.y}>
+    <pixiContainer scale={{ x: scale, y: scale }} x={offset.x} y={offset.y}>
       <pixiGraphics draw={(graphics) => drawBackdrop(graphics, world)} />
       <pixiGraphics draw={(graphics) => drawTrackAndField(graphics, world)} />
       <pixiGraphics draw={(graphics) => drawCampusDetails(graphics, world)} />
+      <Goal side="left" world={world} />
+      <Goal side="right" world={world} />
       {snapshot.droppedItems.map((item) => (
         <DroppedItem item={item} key={item.id} serverTime={snapshot.serverTime} />
       ))}
-      {localPlayer ? <ProjectileGuide player={localPlayer} /> : null}
+      {snapshot.soccerBall ? <SoccerBall ball={snapshot.soccerBall} /> : null}
+      {localPlayer ? <ProjectileGuide player={localPlayer} world={world} /> : null}
       {snapshot.players.map((player) => (
         <PlayerSprite
           isLocal={player.id === playerId}

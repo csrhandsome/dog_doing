@@ -1,6 +1,31 @@
 export type Role = "warrior" | "mage" | "bibilabu";
+export type TeamId = "red" | "blue";
 
-export type WeaponId = "knife" | "arow" | "gun";
+export type WeaponId =
+  | "knife"
+  | "arow"
+  | "gun"
+  | "spear"
+  | "hammer"
+  | "staff"
+  | "fire-staff";
+
+export type RangedWeaponId = "arow" | "gun" | "staff" | "fire-staff";
+export type ProjectileEffect = "normal" | "ice" | "fire";
+
+export type CardId =
+  | "ember-fang"
+  | "iron-roots"
+  | "ghost-plume"
+  | "falcon-iris"
+  | "duelist-scar"
+  | "amber-reactor"
+  | "mirror-thorn"
+  | "grave-sand"
+  | "misfire-dice"
+  | "void-tax";
+
+export type CardPolarity = "boon" | "chaos" | "hex";
 
 export type Vector = {
   x: number;
@@ -11,6 +36,14 @@ export type WorldConfig = {
   width: number;
   height: number;
   cellSize: number;
+  playableInset: number;
+};
+
+export type MatchSnapshot = {
+  durationMs: number;
+  endsAt: number;
+  remainingMs: number;
+  round: number;
 };
 
 export type InputState = {
@@ -36,7 +69,14 @@ export type Player = {
   socketId: string;
   name: string;
   role: Role;
+  team: TeamId;
   equippedWeapon: WeaponId;
+  cards: PlayerCard[];
+  deaths: number;
+  kills: number;
+  killStreak: number;
+  lastKilledByPlayerId: string | null;
+  score: number;
   color: number;
   x: number;
   y: number;
@@ -44,6 +84,7 @@ export type Player = {
   hp: number;
   maxHp: number;
   radius: number;
+  hurtRadius: number;
   speed: number;
   action: PlayerAction;
   actionUntil: number;
@@ -53,6 +94,10 @@ export type Player = {
   };
   attackCooldownUntil: number;
   invulnerableUntil: number;
+  frozenUntil: number;
+  burningUntil: number;
+  nextBurnTickAt: number;
+  burnSourcePlayerId: string | null;
   respawnAt: number | null;
   lastProcessedSeq: number;
 };
@@ -64,10 +109,25 @@ export type DroppedItem = {
   y: number;
 };
 
+export type PlayerCard = {
+  cardId: CardId;
+  obtainedAt: number;
+};
+
+export type SoccerBall = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  radius: number;
+  lastTouchedByPlayerId: string | null;
+};
+
 export type Projectile = {
   id: string;
   ownerId: string;
-  weaponId: Exclude<WeaponId, "knife">;
+  ownerTeam: TeamId;
+  weaponId: RangedWeaponId;
   x: number;
   y: number;
   startX: number;
@@ -78,6 +138,7 @@ export type Projectile = {
   speed: number;
   damage: number;
   radius: number;
+  effect: ProjectileEffect;
   spawnedAt: number;
   expiresAt: number;
 };
@@ -95,7 +156,18 @@ export type ClientInputMessage = {
   payload: InputState;
 };
 
-export type ClientMessage = ClientJoinMessage | ClientInputMessage;
+export type ClientChooseCardMessage = {
+  type: "choose-card";
+  payload: {
+    cardId: CardId;
+    offerId: string;
+  };
+};
+
+export type ClientMessage =
+  | ClientJoinMessage
+  | ClientInputMessage
+  | ClientChooseCardMessage;
 
 export type ServerJoinedMessage = {
   type: "joined";
@@ -110,7 +182,12 @@ export type PlayerSnapshot = {
   id: string;
   name: string;
   role: Role;
+  team: TeamId;
   equippedWeapon: WeaponId;
+  cards: PlayerCard[];
+  deaths: number;
+  kills: number;
+  score: number;
   color: number;
   x: number;
   y: number;
@@ -118,6 +195,8 @@ export type PlayerSnapshot = {
   maxHp: number;
   facing: Vector;
   action: PlayerAction;
+  frozenUntil: number;
+  burningUntil: number;
   lastProcessedSeq: number;
   respawnAt: number | null;
 };
@@ -132,21 +211,33 @@ export type DroppedItemSnapshot = {
 export type ProjectileSnapshot = {
   id: string;
   ownerId: string;
-  weaponId: Exclude<WeaponId, "knife">;
+  weaponId: RangedWeaponId;
   x: number;
   y: number;
   startX: number;
   startY: number;
   endX: number;
   endY: number;
+  effect: ProjectileEffect;
   spawnedAt: number;
   expiresAt: number;
+};
+
+export type SoccerBallSnapshot = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  radius: number;
+  lastTouchedByPlayerId: string | null;
 };
 
 export type ServerSnapshotMessage = {
   type: "snapshot";
   payload: {
+    match: MatchSnapshot;
     serverTime: number;
+    soccerBall: SoccerBallSnapshot | null;
     players: PlayerSnapshot[];
     droppedItems: DroppedItemSnapshot[];
     projectiles: ProjectileSnapshot[];
@@ -161,7 +252,41 @@ export type ServerSystemMessage = {
   };
 };
 
+export type CardOfferOption = {
+  cardId: CardId;
+  description: string;
+  label: string;
+  polarity: CardPolarity;
+  summary: string;
+};
+
+export type CardOfferPayload = {
+  offerId: string;
+  options: CardOfferOption[];
+};
+
+export type ServerCardOfferMessage = {
+  type: "card-offer";
+  payload: CardOfferPayload | null;
+};
+
+export type AnnouncementTone = "gold" | "crimson" | "cobalt";
+
+export type ServerAnnouncementMessage = {
+  type: "announcement";
+  payload: {
+    id: string;
+    kind: "kill" | "streak" | "revenge";
+    title: string;
+    subtitle: string;
+    badge: string;
+    tone: AnnouncementTone;
+  };
+};
+
 export type ServerMessage =
   | ServerJoinedMessage
   | ServerSnapshotMessage
-  | ServerSystemMessage;
+  | ServerSystemMessage
+  | ServerAnnouncementMessage
+  | ServerCardOfferMessage;

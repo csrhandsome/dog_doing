@@ -1,6 +1,14 @@
 import { Assets, Texture } from "pixi.js";
 
-import { ROLE_COPY, ROLE_ORDER, WEAPON_COPY, WEAPON_ORDER } from "../../game/config";
+import {
+  GOAL_ART_SRC,
+  ROLE_COPY,
+  ROLE_ORDER,
+  SHIELD_ART_SRC,
+  SOCCER_BALL_ART_SRC,
+  WEAPON_COPY,
+  WEAPON_ORDER,
+} from "../../game/config";
 import type { Role, SnapshotPlayer, WeaponId } from "../../game/protocol";
 
 export const TEXT_STYLE = {
@@ -13,12 +21,31 @@ export const TEXT_STYLE = {
 
 const playerTextureCache = new Map<Role, Texture>();
 const weaponTextureCache = new Map<WeaponId, Texture>();
+let goalTextureCache: Texture | null = null;
+let shieldTextureCache: Texture | null = null;
+let soccerBallTextureCache: Texture | null = null;
 let textureLoadPromise: Promise<void> | null = null;
+
+async function loadTexture(
+  label: string,
+  src: string,
+  assign: (texture: Texture) => void,
+) {
+  try {
+    const texture = await Assets.load<Texture>(src);
+    assign(texture);
+  } catch (error) {
+    console.warn(`[renderConfig] failed to load ${label} texture`, error);
+  }
+}
 
 export function areRenderTexturesReady() {
   return (
     playerTextureCache.size === ROLE_ORDER.length &&
-    weaponTextureCache.size === WEAPON_ORDER.length
+    weaponTextureCache.size === WEAPON_ORDER.length &&
+    shieldTextureCache !== null &&
+    soccerBallTextureCache !== null &&
+    goalTextureCache !== null
   );
 }
 
@@ -37,18 +64,45 @@ export function getWeaponTexture(weaponId: WeaponId) {
   return weaponTextureCache.get(weaponId) ?? null;
 }
 
+export function getShieldTexture() {
+  return shieldTextureCache;
+}
+
+export function getSoccerBallTexture() {
+  return soccerBallTextureCache;
+}
+
+export function getGoalTexture() {
+  return goalTextureCache;
+}
+
 export function loadRenderTextures() {
-  if (!textureLoadPromise) {
+  if (!textureLoadPromise || !areRenderTexturesReady()) {
     textureLoadPromise = Promise.all([
-      ...ROLE_ORDER.map(async (role) => {
-        const texture = await Assets.load<Texture>(ROLE_COPY[role].artSrc);
-        playerTextureCache.set(role, texture);
+      ...ROLE_ORDER.map((role) =>
+        loadTexture(`role:${role}`, ROLE_COPY[role].artSrc, (texture) => {
+          playerTextureCache.set(role, texture);
+        }),
+      ),
+      ...WEAPON_ORDER.map((weaponId) =>
+        loadTexture(`weapon:${weaponId}`, WEAPON_COPY[weaponId].artSrc, (texture) => {
+          weaponTextureCache.set(weaponId, texture);
+        }),
+      ),
+      loadTexture("shield", SHIELD_ART_SRC, (texture) => {
+        shieldTextureCache = texture;
       }),
-      ...WEAPON_ORDER.map(async (weaponId) => {
-        const texture = await Assets.load<Texture>(WEAPON_COPY[weaponId].artSrc);
-        weaponTextureCache.set(weaponId, texture);
+      loadTexture("soccer-ball", SOCCER_BALL_ART_SRC, (texture) => {
+        soccerBallTextureCache = texture;
       }),
-    ]).then(() => undefined);
+      loadTexture("goal", GOAL_ART_SRC, (texture) => {
+        goalTextureCache = texture;
+      }),
+    ]).then(() => {
+      if (!areRenderTexturesReady()) {
+        textureLoadPromise = null;
+      }
+    });
   }
 
   return textureLoadPromise;

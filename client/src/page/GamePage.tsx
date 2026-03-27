@@ -1,6 +1,7 @@
 import { useState } from "react";
 
-import { ROLE_COPY, ROLE_ORDER } from "../game/config";
+import { CardDraftOverlay } from "../components/game/CardDraftOverlay";
+import { ROLE_COPY, ROLE_ORDER, TEAM_COPY } from "../game/config";
 import { GameCanvas } from "../game/GameCanvas";
 import {
   DEFAULT_WORLD,
@@ -16,50 +17,94 @@ import {
 } from "../styles/styles";
 
 const PREVIEW_SNAPSHOT: SnapshotPayload = {
+  match: {
+    durationMs: 180000,
+    endsAt: 180000,
+    remainingMs: 180000,
+    round: 1,
+  },
   serverTime: 0,
+  soccerBall: {
+    lastTouchedByPlayerId: null,
+    radius: 26,
+    vx: 0,
+    vy: 0,
+    x: 1100,
+    y: 800,
+  },
   players: [
     {
-      action: "idle",
-      color: 0xbd4f31,
+      action: "block",
+      cards: [],
+      color: TEAM_COPY.red.color,
+      dashChargeRatio: 0,
+      dashCooldownUntil: 0,
+      dashTrailUntil: 0,
+      deaths: 1,
       equippedWeapon: "knife",
       facing: { x: 1, y: 0 },
+      frozenUntil: 0,
+      burningUntil: 0,
       hp: 100,
       id: "preview-warrior",
+      kills: 4,
       lastProcessedSeq: 0,
       maxHp: 100,
       name: "Dog Doing",
       respawnAt: null,
       role: "warrior",
+      team: "red",
+      score: 400,
       x: 1040,
       y: 850,
     },
     {
-      action: "block",
-      color: 0x2e6fd8,
+      action: "idle",
+      cards: [],
+      color: TEAM_COPY.blue.color,
+      dashChargeRatio: 0,
+      dashCooldownUntil: 0,
+      dashTrailUntil: 0,
+      deaths: 2,
       equippedWeapon: "arow",
       facing: { x: -1, y: 0 },
+      frozenUntil: 0,
+      burningUntil: 0,
       hp: 100,
       id: "preview-mage",
+      kills: 2,
       lastProcessedSeq: 0,
       maxHp: 100,
       name: "Hajimi",
       respawnAt: null,
       role: "mage",
+      team: "blue",
+      score: 200,
       x: 1260,
       y: 850,
     },
     {
       action: "idle",
-      color: 0xd9b126,
+      cards: [],
+      color: TEAM_COPY.red.color,
+      dashChargeRatio: 0,
+      dashCooldownUntil: 0,
+      dashTrailUntil: 0,
+      deaths: 0,
       equippedWeapon: "gun",
       facing: { x: 0, y: -1 },
+      frozenUntil: 0,
+      burningUntil: 0,
       hp: 100,
       id: "preview-bibilabu",
+      kills: 3,
       lastProcessedSeq: 0,
       maxHp: 100,
       name: "Bibilabu",
       respawnAt: null,
       role: "bibilabu",
+      team: "red",
+      score: 300,
       x: 1140,
       y: 1020,
     },
@@ -83,6 +128,30 @@ const PREVIEW_SNAPSHOT: SnapshotPayload = {
       x: 1140,
       y: 700,
     },
+    {
+      id: "preview-drop-spear",
+      weaponId: "spear",
+      x: 980,
+      y: 720,
+    },
+    {
+      id: "preview-drop-hammer",
+      weaponId: "hammer",
+      x: 1290,
+      y: 760,
+    },
+    {
+      id: "preview-drop-staff",
+      weaponId: "staff",
+      x: 1220,
+      y: 980,
+    },
+    {
+      id: "preview-drop-fire-staff",
+      weaponId: "fire-staff",
+      x: 1360,
+      y: 840,
+    },
   ],
   projectiles: [],
 };
@@ -94,8 +163,11 @@ function createGuestName() {
 function GamePage() {
   const [name] = useState(createGuestName);
   const [selectedRole, setSelectedRole] = useState<Role>("warrior");
-  const keyboardInput = useKeyboardInput(true);
+  const keyboardInput = useKeyboardInput(true, selectedRole === "warrior");
   const {
+    announcement,
+    cardOffer,
+    chooseCard,
     connect,
     connection,
     disconnect,
@@ -123,9 +195,16 @@ function GamePage() {
   if (status === "playing" && snapshot && playerId) {
     return (
       <GameCanvas
+        announcement={announcement}
+        overlay={
+          cardOffer ? (
+            <CardDraftOverlay offer={cardOffer} onChoose={chooseCard} />
+          ) : null
+        }
         onLeave={() => disconnect()}
         playerId={playerId}
         snapshot={snapshot}
+        stageBlurred={Boolean(cardOffer)}
         systemMessage={systemMessage}
         tickRate={connection.tickRate}
         variant="play"

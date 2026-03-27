@@ -71,7 +71,7 @@ export function PlayerSprite({
       <pixiGraphics
         draw={(graphics) => drawRespawnDial(graphics, player, serverTime)}
       />
-      <PlayerBody isLocal={isLocal} player={player} />
+      <PlayerBody isLocal={isLocal} player={player} serverTime={serverTime} />
       <PlayerWeapon player={player} />
       <pixiGraphics draw={(graphics) => drawHealthBar(graphics, player)} />
     </pixiContainer>

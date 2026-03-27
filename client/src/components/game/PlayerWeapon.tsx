@@ -1,7 +1,7 @@
 import { extend } from "@pixi/react";
 import { Container, Graphics, Sprite } from "pixi.js";
 
-import { WEAPON_COPY } from "../../game/config";
+import { WEAPON_COPY, canRoleUseShield } from "../../game/config";
 import type { SnapshotPlayer } from "../../game/protocol";
 import { getFacing, getWeaponTexture } from "./renderConfig";
 
@@ -54,7 +54,7 @@ function drawWeapon(graphics: Graphics, player: SnapshotPlayer) {
     }
   }
 
-  if (player.action === "block") {
+  if (player.action === "block" && !canRoleUseShield(player.role)) {
     graphics.roundRect(facingX * 16 - 12, facingY * 16 - 12, 24, 24, 8).stroke({
       color: 0x171412,
       width: 4,
